@@ -1,0 +1,653 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "Lampese/MCIL/src/cil"
+
+import(
+  "moonbitlang/core/hashset"
+)
+
+// Values
+pub fn add_offset(Offset, Offset) -> Offset
+
+pub fn add_offset_lval(LVal, Offset) -> LVal
+
+pub fn all_stmts(File) -> Array[Stmt]
+
+pub fn[T] backwards_dataflow(BackwardsConfig[T], Array[Stmt]) -> Unit
+
+pub fn build_dom_tree(DomInfo, FunDec) -> Map[Int, Array[Int]]
+
+pub fn cfg_fun(FunDec) -> Int
+
+pub fn char_ptr_type() -> Typ
+
+pub fn char_type() -> Typ
+
+pub fn check_attributes(Checker, Array[Attribute], Location) -> Unit
+
+pub fn check_block(Checker, Block) -> Unit
+
+pub fn check_exp(Checker, Exp, Location) -> Typ
+
+pub fn check_file(File) -> Array[CheckError]
+
+pub fn check_fundec(Checker, FunDec, Location) -> Unit
+
+pub fn check_global(Checker, Global) -> Unit
+
+pub fn check_init(Checker, Init, Typ, Location) -> Unit
+
+pub fn check_instr(Checker, Instr) -> Unit
+
+pub fn check_lval(Checker, LVal, Location) -> Typ
+
+pub fn check_offset(Checker, Typ, Offset, Location) -> Typ
+
+pub fn check_stmt(Checker, Stmt) -> Unit
+
+pub fn check_type(Checker, Typ, CtxType, Location) -> Unit
+
+pub fn check_type_compatible(Checker, Typ, Typ, Location) -> Unit
+
+pub fn check_type_context(Checker, Typ, CtxType, Location) -> Bool
+
+pub fn clear_cfg_info(FunDec) -> Unit
+
+pub fn clear_file_cfg(File) -> Unit
+
+pub fn compare_exp(Exp, Exp) -> Bool
+
+pub fn compare_exp_strip_casts(Exp, Exp) -> Bool
+
+pub fn compare_loc(Location, Location) -> Int
+
+pub fn compare_lval(LVal, LVal) -> Bool
+
+pub fn compute_dom_frontier(DomInfo, FunDec) -> Map[Int, @hashset.HashSet[Int]]
+
+pub fn compute_dominators(FunDec) -> DomInfo
+
+pub fn compute_file_cfg(File) -> Unit
+
+pub fn dominates(DomInfo, Stmt, Stmt) -> Bool
+
+pub fn double_type() -> Typ
+
+pub fn empty_file(String) -> File
+
+pub fn escape_wchar(Int64) -> String
+
+pub fn escape_wchar_char(Char) -> String
+
+pub fn escape_wide_string(String) -> String
+
+pub fn escape_wstring(Array[Int64]) -> String
+
+pub fn find_stmts(FunDec) -> (Array[Stmt], Array[Stmt])
+
+pub fn float_type() -> Typ
+
+pub fn[A] fold_globals(File, A, (A, Global) -> A) -> A
+
+pub fn forall_stmts(FunDec, (Stmt) -> Unit) -> Unit
+
+pub fn[T] forwards_dataflow(ForwardsConfig[T], Array[Stmt]) -> Unit
+
+pub fn get_current_stmt_id() -> Int
+
+pub fn get_dominators(DomInfo, Stmt) -> @hashset.HashSet[Int]
+
+pub fn get_idom(DomInfo, Stmt) -> Int?
+
+pub fn get_integer_value(Exp) -> Int64?
+
+pub fn int_ptr_type() -> Typ
+
+pub fn int_type() -> Typ
+
+pub fn integer(Int) -> Exp
+
+pub fn is_arithmetic_type(Typ) -> Bool
+
+pub fn is_array_type(Typ) -> Bool
+
+pub fn is_constant(Exp) -> Bool
+
+pub fn is_constant_exp(Exp) -> Bool
+
+pub fn is_float_type(Typ) -> Bool
+
+pub fn is_floating_type(Typ) -> Bool
+
+pub fn is_function_type(Typ) -> Bool
+
+pub fn is_integer(Exp) -> Int64?
+
+pub fn is_integer_constant(Exp) -> Bool
+
+pub fn is_integral_type(Typ) -> Bool
+
+pub fn is_pointer_type(Typ) -> Bool
+
+pub fn is_scalar_type(Typ) -> Bool
+
+pub fn is_valid_file(File) -> Bool
+
+pub fn is_zero(Exp) -> Bool
+
+pub fn iter_globals(File, (Global) -> Unit) -> Unit
+
+pub fn kinteger64(IKind, Int64) -> Exp
+
+pub fn long_type() -> Typ
+
+pub fn lower_enum_exp(Exp) -> Exp
+
+pub fn lower_enum_file(File) -> Unit
+
+pub fn lower_enum_fundec(FunDec) -> Unit
+
+pub fn lower_switch_to_if(Stmt) -> Stmt
+
+pub fn make_global_var(String, Typ) -> VarInfo
+
+pub fn make_local_var(String, Typ) -> VarInfo
+
+pub fn make_temp_var(FunDec, String, Typ) -> VarInfo
+
+pub fn merge(Array[File], String, MergeOptions) -> (File, Array[MergeConflict])
+
+pub fn merge_files(Array[File], String) -> File
+
+pub fn mk_block(Array[Stmt]) -> Block
+
+pub fn mk_empty_stmt() -> Stmt
+
+pub fn mk_mem(Exp, Offset) -> LVal
+
+pub fn mk_stmt(StmtKind) -> Stmt
+
+pub fn mk_string(String) -> Exp
+
+pub fn mk_var(VarInfo) -> LVal
+
+pub fn mone() -> Exp
+
+pub fn new_comp_key() -> Int
+
+pub fn new_sid() -> Int
+
+pub fn new_vid() -> Int
+
+pub fn one() -> Exp
+
+pub fn print_binop(BinOp) -> String
+
+pub fn print_block(Block, Int) -> String
+
+pub fn print_cfg_dot(FunDec) -> String
+
+pub fn print_constant(Constant) -> String
+
+pub fn print_dom_info(DomInfo, FunDec) -> String
+
+pub fn print_exp(Exp) -> String
+
+pub fn print_file(File) -> String
+
+pub fn print_fkind(FKind) -> String
+
+pub fn print_fundec(FunDec) -> String
+
+pub fn print_global(Global) -> String
+
+pub fn print_ikind(IKind) -> String
+
+pub fn print_init(Init) -> String
+
+pub fn print_instr(Instr, Int) -> String
+
+pub fn print_lval(LVal) -> String
+
+pub fn print_stmt(Stmt, Int) -> String
+
+pub fn print_storage(Storage) -> String
+
+pub fn print_type(Typ) -> String
+
+pub fn print_type_with_name(Typ, String) -> String
+
+pub fn print_unop(UnOp) -> String
+
+pub fn reset_stmt_id() -> Unit
+
+pub fn strip_nop_casts(Exp) -> Exp
+
+pub fn type_of(Exp) -> Typ
+
+pub fn type_of_lval(LVal) -> Typ
+
+pub fn type_of_offset(Typ, Offset) -> Typ
+
+pub fn uint_type() -> Typ
+
+pub fn ulong_type() -> Typ
+
+pub fn unescape_string(String) -> String
+
+pub let unknown_loc : Location
+
+pub let unknown_location : Location
+
+pub fn unroll_type(Typ) -> Typ
+
+pub fn[V : CilVisitor] visit_file(V, File) -> Unit
+
+pub fn void_ptr_type() -> Typ
+
+pub fn void_type() -> Typ
+
+pub fn zero() -> Exp
+
+// Errors
+
+// Types and methods
+pub enum Action[T] {
+  Default
+  Done(T)
+  Post((T) -> T)
+}
+
+pub(all) enum AttrParam {
+  AInt(Int)
+  AStr(String)
+  ACons(String, Array[AttrParam])
+  ASizeOf(Typ)
+  ASizeOfE(AttrParam)
+  AAlignOf(Typ)
+  AAlignOfE(AttrParam)
+  AUnOp(UnOp, AttrParam)
+  ABinOp(BinOp, AttrParam, AttrParam)
+  ADot(AttrParam, String)
+  AStar(AttrParam)
+  AAddrOf(AttrParam)
+  AIndex(AttrParam, AttrParam)
+  AQuestion(AttrParam, AttrParam, AttrParam)
+}
+
+pub(all) struct Attribute {
+  name : String
+  params : Array[AttrParam]
+}
+
+pub struct BackwardsConfig[T] {
+  name : String
+  get_data : (Int) -> T?
+  set_data : (Int, T) -> Unit
+  func_exit_data : T
+  combine_stmt_start_data : (Stmt, T, T) -> T?
+  combine_successors : (T, T) -> T
+  do_stmt : (Stmt) -> Action[T]
+  do_instr : (Instr, T) -> Action[T]
+  filter_stmt : (Stmt, Stmt) -> Bool
+}
+
+pub(all) enum BinOp {
+  PlusA
+  PlusPI
+  IndexPI
+  MinusA
+  MinusPI
+  MinusPP
+  Mult
+  Div
+  Mod
+  Shiftlt
+  Shiftrt
+  Lt
+  Gt
+  Le
+  Ge
+  Eq
+  Ne
+  BAnd
+  BXor
+  BOr
+  LAnd
+  LOr
+}
+
+pub(all) struct Block {
+  battrs : Array[Attribute]
+  bstmts : Array[Stmt]
+}
+
+pub struct CheckError {
+  message : String
+  loc_file : String
+  loc_line : Int
+}
+
+pub struct Checker {
+  errors : Array[CheckError]
+  mut current_function : VarInfo?
+  mut current_return_type : Typ?
+  defined_vars : Map[Int, VarInfo]
+  defined_labels : Map[String, Bool]
+  goto_targets : Array[(String, Stmt)]
+}
+pub fn Checker::new() -> Self
+
+pub(all) struct Comment {
+  loc : Location
+  text : String
+}
+
+pub(all) struct CompInfo {
+  cstruct : Bool
+  cname : String
+  ckey : Int
+  cfields : Array[FieldInfo]
+  cattr : Array[Attribute]
+  mut cdefined : Bool
+  creferenced : Bool
+}
+
+pub(all) enum Constant {
+  CInt64(Int64, IKind, String?)
+  CStr(String)
+  CWStr(Array[Int64])
+  CChr(Char)
+  CReal(Double, FKind, String?)
+  CEnum(Exp, String, EnumInfo)
+}
+
+pub enum CtxType {
+  CTStruct
+  CTUnion
+  CTFArg
+  CTFRes
+  CTArray
+  CTPtr
+  CTExp
+  CTSizeof
+  CTDecl
+}
+pub impl Show for CtxType
+
+pub struct DomInfo {
+  dominators : Map[Int, @hashset.HashSet[Int]]
+  idom : Map[Int, Int?]
+}
+pub fn DomInfo::new() -> Self
+
+pub(all) struct EnumInfo {
+  ename : String
+  eitems : Array[(String, Exp, Location)]
+  eattr : Array[Attribute]
+  ereferenced : Bool
+  ekind : IKind
+}
+
+pub(all) enum Exp {
+  Const(Constant)
+  Lval(LVal)
+  SizeOf(Typ)
+  SizeOfE(Exp)
+  SizeOfStr(String)
+  AlignOf(Typ)
+  AlignOfE(Exp)
+  UnOp(UnOp, Exp, Typ)
+  BinOp(BinOp, Exp, Exp, Typ)
+  Question(Exp, Exp, Exp, Typ)
+  CastE(Typ, Exp)
+  AddrOf(LVal)
+  AddrOfLabel(Stmt)
+  StartOf(LVal)
+}
+
+pub(all) enum FKind {
+  FFloat
+  FDouble
+  FLongDouble
+}
+pub impl Eq for FKind
+
+pub(all) struct FieldInfo {
+  fcomp : CompInfo
+  fname : String
+  ftype : Typ
+  fbitfield : Int?
+  fattr : Array[Attribute]
+  floc : Location
+}
+
+pub(all) struct File {
+  filename : String
+  globals : Array[Global]
+  globinit : FunDec?
+  globinitcalled : Bool
+}
+
+pub struct ForwardsConfig[T] {
+  name : String
+  get_data : (Int) -> T?
+  set_data : (Int, T) -> Unit
+  has_data : (Int) -> Bool
+  copy : (T) -> T
+  compute_first_predecessor : (Stmt, T) -> T
+  combine_predecessors : (Stmt, T, T) -> T?
+  do_instr : (Instr, T) -> Action[T]
+  do_stmt : (Stmt, T) -> StmtAction[T]
+  do_guard : (Exp, T) -> GuardAction[T]
+  filter_stmt : (Stmt) -> Bool
+}
+
+pub(all) struct FunDec {
+  svar : VarInfo
+  sformals : Array[VarInfo]
+  slocals : Array[VarInfo]
+  smaxid : Int
+  mut sbody : Block
+  smaxstmtid : Int?
+  sallstmts : Array[Stmt]
+}
+
+pub(all) enum Global {
+  GType(TypeInfo, Location)
+  GCompTag(CompInfo, Location)
+  GCompTagDecl(CompInfo, Location)
+  GEnumTag(EnumInfo, Location)
+  GEnumTagDecl(EnumInfo, Location)
+  GVarDecl(VarInfo, Location)
+  GVar(VarInfo, InitInfo, Location)
+  GFun(FunDec, Location)
+  GAsm(String, Location)
+  GPragma(Attribute, Location)
+  GText(String)
+}
+
+pub enum GuardAction[T] {
+  GDefault
+  GUse(T)
+  GUnreachable
+}
+
+pub(all) enum IKind {
+  IChar
+  ISChar
+  IUChar
+  IBool
+  IInt
+  IUInt
+  IShort
+  IUShort
+  ILong
+  IULong
+  ILongLong
+  IULongLong
+}
+pub impl Eq for IKind
+
+pub(all) enum Init {
+  SingleInit(Exp)
+  CompoundInit(Typ, Array[(Offset, Init)])
+}
+
+pub(all) struct InitInfo {
+  init : Init?
+}
+
+pub(all) enum Instr {
+  Set(LVal, Exp, Location)
+  Call(LVal?, Exp, Array[Exp], Location)
+  Asm(Array[Attribute], Array[String], Array[(String?, String, LVal)], Array[(String?, String, Exp)], Array[String], Location)
+}
+
+pub(all) enum LHost {
+  Var(VarInfo)
+  Mem(Exp)
+}
+
+pub(all) struct LVal {
+  host : LHost
+  offset : Offset
+}
+
+pub(all) enum Label {
+  Label(String, Location, Bool)
+  Case(Exp, Location)
+  CaseRange(Exp, Exp, Location)
+  Default(Location)
+}
+
+pub(all) struct Location {
+  line : Int
+  file : String
+  byte : Int
+}
+
+pub struct MergeConflict {
+  message : String
+  loc1 : Location
+  loc2 : Location
+}
+
+pub struct MergeOptions {
+  ignore_conflicts : Bool
+  merge_inlines : Bool
+  merge_synonyms : Bool
+}
+pub fn MergeOptions::default() -> Self
+
+pub struct NopCilVisitor {
+}
+pub fn NopCilVisitor::new() -> Self
+pub impl CilVisitor for NopCilVisitor
+
+pub(all) enum Offset {
+  NoOffset
+  Field(FieldInfo, Offset)
+  Index(Exp, Offset)
+}
+
+pub(all) struct Stmt {
+  labels : Array[Label]
+  mut skind : StmtKind
+  sid : Int
+  succs : Array[Stmt]
+  preds : Array[Stmt]
+}
+
+pub enum StmtAction[T] {
+  SDefault
+  SDone
+  SUse(T)
+}
+
+pub(all) enum StmtKind {
+  Instr(Array[Instr])
+  Return(Exp?, Location)
+  Goto(Stmt, Location)
+  ComputedGoto(Exp, Location)
+  Break(Location)
+  Continue(Location)
+  If(Exp, Block, Block, Location)
+  Switch(Exp, Block, Array[Stmt], Location)
+  Loop(Block, Location, Stmt?, Stmt?)
+  Block(Block)
+  TryFinally(Block, Block, Location)
+  TryExcept(Block, (Array[Instr], Exp), Block, Location)
+}
+
+pub(all) enum Storage {
+  NoStorage
+  Static
+  Register
+  Extern
+}
+
+pub(all) enum Typ {
+  TVoid(Array[Attribute])
+  TInt(IKind, Array[Attribute])
+  TFloat(FKind, Array[Attribute])
+  TPtr(Typ, Array[Attribute])
+  TArray(Typ, Exp?, Array[Attribute])
+  TFun(Typ, Array[(String, Typ, Array[Attribute])]?, Bool, Array[Attribute])
+  TNamed(TypeInfo, Array[Attribute])
+  TComp(CompInfo, Array[Attribute])
+  TEnum(EnumInfo, Array[Attribute])
+  TBuiltinVaList(Array[Attribute])
+}
+
+pub(all) struct TypeInfo {
+  tname : String
+  ttype : Typ
+  treferenced : Bool
+}
+
+pub(all) enum UnOp {
+  Neg
+  BNot
+  LNot
+}
+
+pub(all) struct VarInfo {
+  vname : String
+  vtype : Typ
+  vattr : Array[Attribute]
+  vstorage : Storage
+  vglob : Bool
+  vinline : Bool
+  vdecl : Location
+  vinit : InitInfo
+  vid : Int
+  vaddrof : Bool
+  vreferenced : Bool
+  vdescr : String
+  vdescrpure : Bool
+}
+
+pub enum VisitAction[T] {
+  SkipChildren
+  DoChildren
+  ChangeTo(T)
+  ChangeDoChildrenPost(T, (T) -> T)
+}
+
+// Type aliases
+
+// Traits
+pub(open) trait CilVisitor {
+  visit_global(Self, Global) -> VisitAction[Array[Global]]
+  visit_func(Self, FunDec) -> VisitAction[FunDec]
+  visit_stmt(Self, Stmt) -> VisitAction[Stmt]
+  visit_instr(Self, Instr) -> VisitAction[Array[Instr]]
+  visit_exp(Self, Exp) -> VisitAction[Exp]
+  visit_lval(Self, LVal) -> VisitAction[LVal]
+  visit_type(Self, Typ) -> VisitAction[Typ]
+  visit_varinfo(Self, VarInfo) -> VisitAction[VarInfo]
+  visit_offset(Self, Offset) -> VisitAction[Offset]
+  visit_init(Self, VarInfo, Offset, Init) -> VisitAction[Init]
+  visit_attr(Self, Attribute) -> VisitAction[Array[Attribute]]
+}
+

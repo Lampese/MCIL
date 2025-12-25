@@ -1,0 +1,537 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "Lampese/MCIL/src/frontc"
+
+import(
+  "Lampese/MCIL/src/cil"
+)
+
+// Values
+pub fn conv_exp(ConvEnv, CabsExpression) -> (Array[@cil.Instr], @cil.Exp, @cil.Typ)
+
+pub fn conv_exp_drop(ConvEnv, CabsExpression) -> Array[@cil.Instr]
+
+pub fn conv_file(CabsFile) -> @cil.File raise ConversionError
+
+pub fn conv_fundec(ConvEnv, SingleName, CabsBlock, CabsLoc) -> @cil.FunDec raise ConversionError
+
+pub fn conv_global(ConvEnv, Definition) -> Array[@cil.Global] raise ConversionError
+
+pub fn conv_loc(CabsLoc) -> @cil.Location
+
+pub fn conv_stmt(ConvEnv, CabsStatement) -> @cil.Stmt raise ConversionError
+
+pub fn parse_and_convert(String, String) -> @cil.File raise ConversionError
+
+pub fn parse_c_source(String, String) -> CabsFile raise ParseError
+
+pub async fn preprocess(PreprocessConfig, String) -> String raise PreprocessError
+
+pub async fn preprocess_and_parse(PreprocessConfig, String) -> @cil.File raise PreprocessError
+
+pub async fn preprocess_file(String) -> String raise PreprocessError
+
+pub fn tokenize(String, String) -> Array[(Token, CabsLoc)]
+
+// Errors
+pub suberror ConversionError String
+
+pub suberror ParseError String
+
+pub suberror PreprocessError String
+
+// Types and methods
+pub struct AsmDetails {
+  aoutputs : Array[(String?, String, CabsExpression)]
+  ainputs : Array[(String?, String, CabsExpression)]
+  aclobbers : Array[String]
+}
+pub impl Show for AsmDetails
+
+pub enum CVSpec {
+  CvConst
+  CvVolatile
+  CvRestrict
+}
+pub impl Show for CVSpec
+
+pub struct CabsAttribute {
+  name : String
+  args : Array[CabsExpression]
+}
+pub impl Show for CabsAttribute
+
+pub enum CabsBinaryOp {
+  Add
+  Sub
+  Mul
+  Div
+  Mod
+  And
+  Or
+  Band
+  Bor
+  Xor
+  Shl
+  Shr
+  Eq
+  Ne
+  Lt
+  Gt
+  Le
+  Ge
+  Assign
+  AddAssign
+  SubAssign
+  MulAssign
+  DivAssign
+  ModAssign
+  BandAssign
+  BorAssign
+  XorAssign
+  ShlAssign
+  ShrAssign
+}
+pub impl Show for CabsBinaryOp
+
+pub struct CabsBlock {
+  blabels : Array[String]
+  battrs : Array[CabsAttribute]
+  bstmts : Array[CabsStatement]
+}
+pub impl Show for CabsBlock
+
+pub enum CabsConstant {
+  ConstInt(String)
+  ConstFloat(String)
+  ConstChar(Array[Int64])
+  ConstWchar(Array[Int64])
+  ConstString(String)
+  ConstWstring(Array[Int64])
+}
+pub impl Show for CabsConstant
+
+pub enum CabsExpression {
+  Nothing
+  Unary(CabsUnaryOp, CabsExpression)
+  LabelAddr(String)
+  Binary(CabsBinaryOp, CabsExpression, CabsExpression)
+  Question(CabsExpression, CabsExpression, CabsExpression)
+  Cast((Specifier, DeclType), InitExpression)
+  Call(CabsExpression, Array[CabsExpression])
+  Comma(Array[CabsExpression])
+  Constant(CabsConstant)
+  Paren(CabsExpression)
+  Variable(String)
+  ExprSizeof(CabsExpression)
+  TypeSizeof(Specifier, DeclType)
+  ExprAlignof(CabsExpression)
+  TypeAlignof(Specifier, DeclType)
+  Index(CabsExpression, CabsExpression)
+  MemberOf(CabsExpression, String)
+  MemberOfPtr(CabsExpression, String)
+  GnuBody(CabsBlock)
+  ExprPattern(String)
+}
+pub impl Show for CabsExpression
+
+pub struct CabsFile {
+  filename : String
+  definitions : Array[Definition]
+}
+pub impl Show for CabsFile
+
+pub struct CabsLoc {
+  lineno : Int
+  filename : String
+  byteno : Int
+  ident : Int
+}
+pub impl Show for CabsLoc
+
+pub enum CabsStatement {
+  Nop(CabsLoc)
+  Computation(CabsExpression, CabsLoc)
+  Block(CabsBlock, CabsLoc)
+  If(CabsExpression, CabsStatement, CabsStatement, CabsLoc)
+  While(CabsExpression, CabsStatement, CabsLoc)
+  DoWhile(CabsExpression, CabsStatement, CabsLoc)
+  For(ForClause, CabsExpression, CabsExpression, CabsStatement, CabsLoc)
+  Break(CabsLoc)
+  Continue(CabsLoc)
+  Return(CabsExpression, CabsLoc)
+  Switch(CabsExpression, CabsStatement, CabsLoc)
+  Case(CabsExpression, CabsStatement, CabsLoc)
+  CaseRange(CabsExpression, CabsExpression, CabsStatement, CabsLoc)
+  Default(CabsStatement, CabsLoc)
+  Label(String, CabsStatement, CabsLoc)
+  Goto(String, CabsLoc)
+  CompGoto(CabsExpression, CabsLoc)
+  StatDefinition(Definition)
+  Asm(Array[CabsAttribute], Array[String], AsmDetails?, CabsLoc)
+  TryExcept(CabsBlock, CabsExpression, CabsBlock, CabsLoc)
+  TryFinally(CabsBlock, CabsBlock, CabsLoc)
+}
+pub impl Show for CabsStatement
+
+pub enum CabsStorage {
+  NoStorage
+  Auto
+  Static
+  Extern
+  Register
+  Typedef
+}
+pub impl Show for CabsStorage
+
+pub enum CabsUnaryOp {
+  Minus
+  Plus
+  Not
+  Bnot
+  Memof
+  Addrof
+  Preincr
+  Predecr
+  Posincr
+  Posdecr
+}
+pub impl Show for CabsUnaryOp
+
+pub struct ConvEnv {
+  env : Map[String, EnvEntry]
+  genv : Map[String, EnvEntry]
+  current_fun : @cil.FunDec?
+  locals : Array[@cil.VarInfo]
+  mut temp_counter : Int
+  filename : String
+  labels : Map[String, @cil.Stmt]
+  gotos : Array[GotoInfo]
+  comps : Map[String, @cil.CompInfo]
+  emitted_comps : Map[Int, Bool]
+  emitted_enums : Map[String, Bool]
+  emitted_vars : Map[String, Bool]
+}
+pub fn ConvEnv::new(String) -> Self
+
+pub enum DeclType {
+  JustBase
+  ParenType(Array[CabsAttribute], DeclType, Array[CabsAttribute])
+  Array(DeclType, Array[CabsAttribute], CabsExpression)
+  Ptr(Array[CabsAttribute], DeclType)
+  Proto(DeclType, Array[SingleName], Bool)
+}
+pub impl Show for DeclType
+
+pub enum Definition {
+  FunDef(SingleName, CabsBlock, CabsLoc, CabsLoc)
+  DecDef(InitNameGroup, CabsLoc)
+  TypeDef(NameGroup, CabsLoc)
+  OnlyTypeDef(Specifier, CabsLoc)
+  GlobAsm(String, CabsLoc)
+  Pragma(CabsExpression, CabsLoc)
+  Linkage(String, CabsLoc, Array[Definition])
+  Transformer(Definition, Array[Definition], CabsLoc)
+  ExprTransformer(CabsExpression, CabsExpression, CabsLoc)
+}
+pub impl Show for Definition
+
+pub struct EnumItem {
+  name : String
+  value : CabsExpression
+  loc : CabsLoc
+}
+pub impl Show for EnumItem
+
+pub enum EnvEntry {
+  EnvVar(@cil.VarInfo)
+  EnvTypeDef(@cil.TypeInfo)
+  EnvEnum(@cil.Exp, @cil.Typ)
+  EnvComp(@cil.CompInfo)
+}
+
+type ExpAction
+
+pub struct FieldGroup {
+  spec : Specifier
+  fields : Array[(Name, CabsExpression?)]
+}
+pub impl Show for FieldGroup
+
+pub enum ForClause {
+  FcExp(CabsExpression)
+  FcDecl(Definition)
+}
+pub impl Show for ForClause
+
+type GotoInfo
+
+pub enum InitExpression {
+  NoInit
+  SingleInit(CabsExpression)
+  CompoundInit(Array[(InitWhat, InitExpression)])
+}
+pub impl Show for InitExpression
+
+pub struct InitName {
+  name : Name
+  init : InitExpression
+}
+pub impl Show for InitName
+
+pub struct InitNameGroup {
+  spec : Specifier
+  init_names : Array[InitName]
+}
+pub impl Show for InitNameGroup
+
+pub enum InitWhat {
+  NextInit
+  InfieldInit(String, InitWhat)
+  AtindexInit(CabsExpression, InitWhat)
+  AtindexRangeInit(CabsExpression, CabsExpression)
+}
+pub impl Show for InitWhat
+
+pub struct Lexer {
+  source : String
+  mut pos : Int
+  mut line : Int
+  mut col : Int
+  filename : String
+  context : LexerContext
+}
+pub fn Lexer::location(Self) -> CabsLoc
+pub fn Lexer::new(String, String) -> Self
+pub fn Lexer::next_token(Self) -> Token
+pub fn Lexer::with_context(String, String, LexerContext) -> Self
+
+pub struct LexerContext {
+  lexicon : Map[String, NameKind]
+  scope_stack : Array[Array[(String, NameKind?)]]
+}
+pub fn LexerContext::add_identifier(Self, String) -> Unit
+pub fn LexerContext::add_type(Self, String) -> Unit
+pub fn LexerContext::is_type_name(Self, String) -> Bool
+pub fn LexerContext::new() -> Self
+pub fn LexerContext::pop_context(Self) -> Unit
+pub fn LexerContext::push_context(Self) -> Unit
+
+pub struct Name {
+  name : String
+  decl_type : DeclType
+  attrs : Array[CabsAttribute]
+  loc : CabsLoc
+}
+pub impl Show for Name
+
+pub struct NameGroup {
+  spec : Specifier
+  names : Array[Name]
+}
+pub impl Show for NameGroup
+
+type NameKind
+
+pub struct Parser {
+  lexer : Lexer
+  buffer : Array[(Token, CabsLoc)]
+  mut pos : Int
+}
+pub fn Parser::from_lexer(Lexer) -> Self
+pub fn Parser::new(Array[(Token, CabsLoc)]) -> Self
+pub fn Parser::parse_definition(Self) -> Definition raise ParseError
+pub fn Parser::parse_expression(Self) -> CabsExpression raise ParseError
+pub fn Parser::parse_file(Self) -> CabsFile raise ParseError
+pub fn Parser::parse_statement(Self) -> CabsStatement raise ParseError
+
+pub struct PreprocessConfig {
+  compiler : String
+  include_paths : Array[String]
+  defines : Array[(String, String)]
+  extra_args : Array[String]
+}
+pub fn PreprocessConfig::build_args(Self, String) -> Array[String]
+pub fn PreprocessConfig::default() -> Self
+
+pub struct SingleName {
+  spec : Specifier
+  name : Name
+}
+pub impl Show for SingleName
+
+pub enum SpecElem {
+  SpecTypedef
+  SpecCV(CVSpec)
+  SpecAttr(CabsAttribute)
+  SpecStorage(CabsStorage)
+  SpecInline
+  SpecType(TypeSpecifier)
+  SpecPattern(String)
+}
+pub impl Show for SpecElem
+
+pub struct Specifier(Array[SpecElem])
+#deprecated
+pub fn Specifier::inner(Self) -> Array[SpecElem]
+pub impl Show for Specifier
+
+pub enum Token {
+  Ident(String)
+  NamedType(String)
+  IntConst(String)
+  FloatConst(String)
+  StringConst(String)
+  CharConst(String)
+  WideStringConst(String)
+  WideCharConst(String)
+  KwAuto
+  KwBreak
+  KwCase
+  KwChar
+  KwConst
+  KwContinue
+  KwDefault
+  KwDo
+  KwDouble
+  KwElse
+  KwEnum
+  KwExtern
+  KwFloat
+  KwFor
+  KwGoto
+  KwIf
+  KwInline
+  KwInt
+  KwLong
+  KwRegister
+  KwRestrict
+  KwReturn
+  KwShort
+  KwSigned
+  KwSizeof
+  KwStatic
+  KwStruct
+  KwSwitch
+  KwTypedef
+  KwUnion
+  KwUnsigned
+  KwVoid
+  KwVolatile
+  KwWhile
+  KwBool
+  KwComplex
+  KwImaginary
+  KwAlignof
+  KwAlignAs
+  KwAtomic
+  KwGeneric
+  KwNoreturn
+  KwStaticAssert
+  KwThreadLocal
+  KwAsm
+  KwPragma
+  KwAttribute
+  KwTypeof
+  KwExtension
+  KwBuiltinVaArg
+  KwBuiltinVaList
+  KwBuiltinOffsetof
+  KwBuiltinTypesCompat
+  KwFunctionName
+  KwPrettyFunctionName
+  KwLabel
+  KwThread
+  KwInt128(String)
+  KwDeclspec
+  KwInt64
+  KwMsAttr(String)
+  KwTry
+  KwExcept
+  KwFinally
+  KwBlockAttribute
+  KwNullability(String)
+  KwCcuredAttr(String)
+  AtTransform
+  AtTransformExpr
+  AtSpecifier
+  AtExpr
+  AtName
+  Plus
+  Minus
+  Star
+  Slash
+  Percent
+  Amp
+  Pipe
+  Caret
+  Tilde
+  Bang
+  Eq
+  Lt
+  Gt
+  Question
+  Colon
+  Dot
+  Comma
+  Semi
+  PlusPlus
+  MinusMinus
+  Arrow
+  LtLt
+  GtGt
+  LtEq
+  GtEq
+  EqEq
+  BangEq
+  AmpAmp
+  PipePipe
+  PlusEq
+  MinusEq
+  StarEq
+  SlashEq
+  PercentEq
+  AmpEq
+  PipeEq
+  CaretEq
+  LtLtEq
+  GtGtEq
+  Ellipsis
+  LParen
+  RParen
+  LBracket
+  RBracket
+  LBrace
+  RBrace
+  Eof
+  Newline
+  Hash
+  HashHash
+}
+pub impl Show for Token
+
+pub enum TypeSpecifier {
+  Tvoid
+  Tchar
+  Tbool
+  Tshort
+  Tint
+  Tlong
+  Tint64
+  Tfloat
+  Tdouble
+  Tsigned
+  Tsizet
+  Tunsigned
+  Tnamed(String)
+  Tstruct(String, Array[FieldGroup]?, Array[CabsAttribute])
+  Tunion(String, Array[FieldGroup]?, Array[CabsAttribute])
+  Tenum(String, Array[EnumItem]?, Array[CabsAttribute])
+  TtypeofE(CabsExpression)
+  TtypeofT(Specifier, DeclType)
+}
+pub impl Show for TypeSpecifier
+
+// Type aliases
+
+// Traits
+

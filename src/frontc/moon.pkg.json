@@ -1,0 +1,4 @@
+{
+  "import": ["Lampese/MCIL/src/cil", "moonbitlang/async/process"],
+  "wbtest-import": ["moonbitlang/async", "moonbitlang/async/fs"]
+}

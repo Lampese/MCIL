@@ -1,0 +1,179 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "Lampese/MCIL/src/ext"
+
+import(
+  "Lampese/MCIL/src/cil"
+  "moonbitlang/core/hashset"
+)
+
+// Values
+pub fn add_cpp_compat_defines() -> String
+
+pub fn build_callgraph(@cil.File) -> CallGraph
+
+pub fn calls(CallGraph, String, String) -> Bool
+
+pub fn can_inline(@cil.FunDec, InlineOptions) -> Bool
+
+pub fn canonicalize_file(@cil.File) -> Unit
+
+pub fn canonicalize_fundec(@cil.FunDec) -> Unit
+
+pub fn collect_all_refs(@cil.File) -> ReferencedSet
+
+pub fn compute_exp_use(@cil.Exp) -> VarSet
+
+pub fn compute_instr_usedef(@cil.Instr) -> UseDef
+
+pub fn compute_liveness(@cil.FunDec) -> LivenessInfo
+
+pub fn compute_lval_def(@cil.LVal) -> VarSet
+
+pub fn compute_stmtkind_usedef(@cil.StmtKind) -> UseDef
+
+pub fn find_dead_assignments(@cil.FunDec) -> Array[(@cil.Instr, @cil.VarInfo)]
+
+pub fn find_recursive_functions(CallGraph) -> Array[String]
+
+pub fn get_callees(CallGraph, String) -> Array[String]
+
+pub fn get_callers(CallGraph, String) -> Array[String]
+
+pub fn get_entry_functions(CallGraph) -> Array[String]
+
+pub fn get_instr_liveness(Array[@cil.Instr], VarSet) -> Array[VarSet]
+
+pub fn get_leaf_functions(CallGraph) -> Array[String]
+
+pub fn get_live_in(LivenessInfo, @cil.Stmt) -> VarSet
+
+pub fn get_live_out(LivenessInfo, @cil.Stmt) -> VarSet
+
+pub fn get_node(CallGraph, String) -> CallNode?
+
+pub fn inline_call(@cil.FunDec, @cil.FunDec, @cil.LVal?, Array[@cil.Exp], @cil.Location) -> Array[@cil.Stmt]?
+
+pub fn inline_function_calls(@cil.FunDec, @cil.FunDec, InlineOptions) -> Int
+
+pub fn is_cpp_keyword(String) -> Bool
+
+pub fn is_live_at_entry(LivenessInfo, @cil.Stmt, @cil.VarInfo) -> Bool
+
+pub fn is_live_at_exit(LivenessInfo, @cil.Stmt, @cil.VarInfo) -> Bool
+
+pub fn is_reachable(CallGraph, String, String) -> Bool
+
+pub fn make_basic(SimplifyContext, @cil.Exp) -> @cil.Exp
+
+pub fn make_three_address(SimplifyContext, @cil.Exp) -> @cil.Exp
+
+pub fn oneret(@cil.FunDec) -> Unit
+
+pub fn oneret_file(@cil.File) -> Unit
+
+pub fn print_callgraph(CallGraph) -> String
+
+pub fn print_liveness_info(LivenessInfo, @cil.FunDec, Map[Int, @cil.VarInfo]) -> String
+
+pub fn print_removal_stats(@cil.File, Int, Int) -> String
+
+pub fn remove_all_unused_locals(@cil.File) -> Int
+
+pub fn remove_dead_code(@cil.FunDec) -> Int
+
+pub fn remove_duplicate_declarations(@cil.File) -> Unit
+
+pub fn remove_unused_locals(@cil.FunDec) -> Int
+
+pub fn remove_unused_temps(@cil.File) -> (Int, Int)
+
+pub fn rename_cpp_keyword(String) -> String
+
+pub fn simplify_block(@cil.FunDec, @cil.Block) -> Unit
+
+pub fn simplify_file(@cil.File) -> Unit
+
+pub fn simplify_fundec(@cil.FunDec) -> Unit
+
+pub fn simplify_instr(SimplifyContext, @cil.Instr) -> Array[@cil.Instr]
+
+pub fn simplify_lval(SimplifyContext, @cil.LVal) -> @cil.LVal
+
+pub fn simplify_stmt(@cil.FunDec, @cil.Stmt) -> Unit
+
+pub fn to_dot(CallGraph) -> String
+
+pub fn topological_sort(CallGraph) -> Array[String]?
+
+// Errors
+
+// Types and methods
+pub struct CallGraph {
+  nodes : Map[String, CallNode]
+  functions : Map[String, @cil.FunDec]
+}
+pub fn CallGraph::new() -> Self
+
+pub struct CallNode {
+  func : @cil.VarInfo
+  callees : @hashset.HashSet[String]
+  callers : @hashset.HashSet[String]
+  call_sites : Array[(@cil.Location, String)]
+}
+pub fn CallNode::new(@cil.VarInfo) -> Self
+
+pub struct InlineOptions {
+  max_depth : Int
+  max_body_size : Int
+  inline_recursive : Bool
+}
+pub fn InlineOptions::default() -> Self
+
+pub struct LivenessInfo {
+  stmt_live_in : Map[Int, VarSet]
+  stmt_live_out : Map[Int, VarSet]
+}
+pub fn LivenessInfo::new() -> Self
+
+pub struct ReferencedSet {
+  variables : @hashset.HashSet[Int]
+  types : @hashset.HashSet[String]
+  comps : @hashset.HashSet[Int]
+  enums : @hashset.HashSet[String]
+}
+pub fn ReferencedSet::new() -> Self
+
+pub struct SimplifyContext {
+  fundec : @cil.FunDec
+  instrs : Array[@cil.Instr]
+  mut loc : @cil.Location
+}
+pub fn SimplifyContext::new(@cil.FunDec, @cil.Location) -> Self
+
+pub struct UseDef {
+  uses : VarSet
+  defs : VarSet
+}
+pub fn UseDef::new() -> Self
+
+pub struct VarSet(@hashset.HashSet[Int])
+pub fn VarSet::add(Self, @cil.VarInfo) -> Unit
+pub fn VarSet::contains(Self, @cil.VarInfo) -> Bool
+pub fn VarSet::contains_id(Self, Int) -> Bool
+pub fn VarSet::copy(Self) -> Self
+pub fn VarSet::diff(Self, Self) -> Self
+pub fn VarSet::equal(Self, Self) -> Bool
+#deprecated
+pub fn VarSet::inner(Self) -> @hashset.HashSet[Int]
+pub fn VarSet::inter(Self, Self) -> Self
+pub fn VarSet::is_empty(Self) -> Bool
+pub fn VarSet::iter(Self, (Int) -> Unit) -> Unit
+pub fn VarSet::new() -> Self
+pub fn VarSet::remove(Self, @cil.VarInfo) -> Unit
+pub fn VarSet::size(Self) -> Int
+pub fn VarSet::union(Self, Self) -> Self
+
+// Type aliases
+
+// Traits
+
