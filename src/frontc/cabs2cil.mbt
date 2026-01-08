@@ -114,8 +114,8 @@ pub struct ConvEnv {
 
 ///|
 pub fn ConvEnv::new(filename : String) -> ConvEnv {
-  let env : Map[String, EnvEntry] = {}
-  let genv : Map[String, EnvEntry] = {}
+  let env = {}
+  let genv = {}
   let va_list_ti : @cil.TypeInfo = {
     tname: "__builtin_va_list",
     ttype: @cil.TBuiltinVaList([]),
@@ -279,7 +279,7 @@ pub fn ConvEnv::new(filename : String) -> ConvEnv {
   ]
   for item in system_types {
     let (name, typ) = item
-    let ti : @cil.TypeInfo = { tname: name, ttype: typ, treferenced: true }
+    let ti = @cil.TypeInfo::{ tname: name, ttype: typ, treferenced: true }
     genv[name] = EnvTypeDef(ti)
   }
   {
@@ -359,6 +359,36 @@ fn make_placeholder_field(
 }
 
 ///|
+fn conv_cabs_attr(env : ConvEnv, a : CabsAttribute) -> @cil.Attribute {
+  let params : Array[@cil.AttrParam] = []
+  for e in a.args {
+    let p = conv_expr_to_attrparam(env, e) catch { _ => @cil.AInt(0) }
+    params.push(p)
+  }
+  { name: a.name, params }
+}
+
+///|
+fn conv_name_attrs(
+  env : ConvEnv,
+  attrs : Array[CabsAttribute],
+) -> Array[@cil.Attribute] {
+  let out : Array[@cil.Attribute] = []
+  for a in attrs {
+    out.push(conv_cabs_attr(env, a))
+  }
+  out
+}
+
+///|
+fn conv_block_attrs(
+  env : ConvEnv,
+  attrs : Array[CabsAttribute],
+) -> Array[@cil.Attribute] {
+  conv_name_attrs(env, attrs)
+}
+
+///|
 fn dummy_var() -> @cil.VarInfo {
   {
     vname: "__dummy",
@@ -424,6 +454,7 @@ fn conv_type_specifier(
 ) -> @cil.Typ raise ConversionError {
   let Specifier(specs) = spec
   let mut base_type : @cil.Typ? = None
+  let type_attrs : Array[@cil.Attribute] = []
   let mut is_signed = false
   let mut is_unsigned = false
   let mut is_short = false
@@ -431,6 +462,15 @@ fn conv_type_specifier(
   let mut is_longlong = false
   for elem in specs {
     match elem {
+      SpecCV(cv) => {
+        let name = match cv {
+          CvConst => "const"
+          CvVolatile => "volatile"
+          CvRestrict => "restrict"
+        }
+        type_attrs.push({ name, params: [] })
+      }
+      SpecAttr(attr) => type_attrs.push(conv_cabs_attr(env, attr))
       SpecType(ts) =>
         match ts {
           Tvoid => base_type = Some(@cil.TVoid([]))
@@ -524,7 +564,25 @@ fn conv_type_specifier(
         @cil.TInt(@cil.IInt, [])
       }
   }
-  final_type
+  fn add_attrs(t : @cil.Typ, attrs : Array[@cil.Attribute]) -> @cil.Typ {
+    if attrs.is_empty() {
+      return t
+    }
+    match t {
+      @cil.TVoid(a) => @cil.TVoid(a + attrs)
+      @cil.TInt(k, a) => @cil.TInt(k, a + attrs)
+      @cil.TFloat(k, a) => @cil.TFloat(k, a + attrs)
+      @cil.TPtr(bt, a) => @cil.TPtr(bt, a + attrs)
+      @cil.TArray(bt, len, a) => @cil.TArray(bt, len, a + attrs)
+      @cil.TFun(rt, ps, va, a) => @cil.TFun(rt, ps, va, a + attrs)
+      @cil.TNamed(ti, a) => @cil.TNamed(ti, a + attrs)
+      @cil.TComp(ci, a) => @cil.TComp(ci, a + attrs)
+      @cil.TEnum(ei, a) => @cil.TEnum(ei, a + attrs)
+      @cil.TBuiltinVaList(a) => @cil.TBuiltinVaList(a + attrs)
+    }
+  }
+
+  add_attrs(final_type, type_attrs)
 }
 
 ///|
@@ -535,8 +593,12 @@ fn conv_decl_type(
 ) -> @cil.Typ raise ConversionError {
   match decl {
     JustBase => base
-    Ptr(_, inner) => {
-      let ptr_type = @cil.TPtr(base, [])
+    Ptr(attrs, inner) => {
+      let ptr_attrs : Array[@cil.Attribute] = []
+      for a in attrs {
+        ptr_attrs.push({ name: a.name, params: [] })
+      }
+      let ptr_type = @cil.TPtr(base, ptr_attrs)
       conv_decl_type(env, ptr_type, inner)
     }
     Array(inner, _, size_expr) => {
@@ -555,7 +617,9 @@ fn conv_decl_type(
       for p in params {
         let param_base = conv_type_specifier(env, p.spec)
         let param_type = conv_decl_type(env, param_base, p.name.decl_type)
-        param_types.push((p.name.name, param_type, []))
+        param_types.push(
+          (p.name.name, param_type, conv_name_attrs(env, p.name.attrs)),
+        )
       }
       let fun_type = @cil.TFun(base, Some(param_types), is_vararg, [])
       conv_decl_type(env, fun_type, inner)
@@ -571,6 +635,50 @@ fn conv_comp(
   name : String,
   fields_opt : Array[FieldGroup]?,
 ) -> @cil.CompInfo {
+  if name == "" {
+    let ci : @cil.CompInfo = {
+      cstruct: is_struct,
+      cname: name,
+      ckey: @cil.new_comp_key(),
+      cfields: [],
+      cattr: [],
+      cdefined: not(fields_opt is None),
+      creferenced: false,
+    }
+    match fields_opt {
+      Some(field_groups) =>
+        for fg in field_groups {
+          let base_type = conv_type_specifier(env, fg.spec) catch {
+            _ => @cil.TInt(@cil.IInt, [])
+          }
+          for field_decl in fg.fields {
+            let (name_info, bitfield_opt) = field_decl
+            if name_info.name == "" {
+              continue
+            }
+            let field_type = conv_decl_type(env, base_type, name_info.decl_type) catch {
+              _ => base_type
+            }
+            let bitfield = match bitfield_opt {
+              Some(_) => Some(32)
+              None => None
+            }
+            let fattr = conv_name_attrs(env, name_info.attrs)
+            let fi : @cil.FieldInfo = {
+              fcomp: ci,
+              fname: name_info.name,
+              ftype: field_type,
+              fbitfield: bitfield,
+              fattr,
+              floc: conv_loc(name_info.loc),
+            }
+            ci.cfields.push(fi)
+          }
+        }
+      None => ()
+    }
+    return ci
+  }
   match env.comps.get(name) {
     Some(existing_ci) => {
       match fields_opt {
@@ -593,12 +701,13 @@ fn conv_comp(
                   Some(_) => Some(32)
                   None => None
                 }
+                let fattr = conv_name_attrs(env, name_info.attrs)
                 let fi : @cil.FieldInfo = {
                   fcomp: existing_ci,
                   fname: name_info.name,
                   ftype: field_type,
                   fbitfield: bitfield,
-                  fattr: [],
+                  fattr,
                   floc: conv_loc(name_info.loc),
                 }
                 existing_ci.cfields.push(fi)
@@ -643,12 +752,13 @@ fn conv_comp(
                 Some(_) => Some(32)
                 None => None
               }
+              let fattr = conv_name_attrs(env, name_info.attrs)
               let fi : @cil.FieldInfo = {
                 fcomp: ci,
                 fname: name_info.name,
                 ftype: field_type,
                 fbitfield: bitfield,
-                fattr: [],
+                fattr,
                 floc: conv_loc(name_info.loc),
               }
               ci.cfields.push(fi)
@@ -662,11 +772,124 @@ fn conv_comp(
 }
 
 ///|
+fn sizeof_basic(t : @cil.Typ) -> Int64? {
+  match unroll_type(t) {
+    @cil.TVoid(_) => Some(1L)
+    @cil.TInt(ik, _) =>
+      Some(
+        match ik {
+          @cil.IBool | @cil.IChar | @cil.ISChar | @cil.IUChar => 1L
+          @cil.IShort | @cil.IUShort => 2L
+          @cil.IInt | @cil.IUInt => 4L
+          @cil.ILong | @cil.IULong => 8L
+          @cil.ILongLong | @cil.IULongLong => 8L
+        },
+      )
+    @cil.TFloat(fk, _) =>
+      Some(
+        match fk {
+          @cil.FFloat => 4L
+          @cil.FDouble => 8L
+          @cil.FLongDouble => 16L
+        },
+      )
+    @cil.TPtr(_, _) => Some(8L)
+    _ => None
+  }
+}
+
+///|
+fn eval_const_int64(env : ConvEnv, e : CabsExpression) -> Int64? {
+  match e {
+    Nothing => None
+    Paren(inner) => eval_const_int64(env, inner)
+    Constant(ConstInt(s)) => Some(parse_int64(s))
+    Unary(op, inner) =>
+      match eval_const_int64(env, inner) {
+        Some(v) =>
+          Some(
+            match op {
+              Minus => 0L - v
+              Plus => v
+              Bnot => v ^ -1L
+              Not => if v == 0L { 1L } else { 0L }
+              _ => v
+            },
+          )
+        None => None
+      }
+    Binary(op, e1, e2) =>
+      match (eval_const_int64(env, e1), eval_const_int64(env, e2)) {
+        (Some(a), Some(b)) =>
+          Some(
+            match op {
+              Add => a + b
+              Sub => a - b
+              Mul => a * b
+              Div => if b == 0L { 0L } else { a / b }
+              Mod => if b == 0L { 0L } else { a % b }
+              Band => a & b
+              Bor => a | b
+              Xor => a ^ b
+              Shl => a << b.to_int()
+              Shr => a >> b.to_int()
+              Lt => if a < b { 1L } else { 0L }
+              Gt => if a > b { 1L } else { 0L }
+              Le => if a <= b { 1L } else { 0L }
+              Ge => if a >= b { 1L } else { 0L }
+              Eq => if a == b { 1L } else { 0L }
+              Ne => if a != b { 1L } else { 0L }
+              And => if a != 0L && b != 0L { 1L } else { 0L }
+              Or => if a != 0L || b != 0L { 1L } else { 0L }
+              _ => a
+            },
+          )
+        _ => None
+      }
+    Question(cond, e_true, e_false) =>
+      match eval_const_int64(env, cond) {
+        Some(c) =>
+          if c != 0L {
+            eval_const_int64(env, e_true)
+          } else {
+            eval_const_int64(env, e_false)
+          }
+        None => None
+      }
+    Cast((_, _), init_expr) =>
+      match init_expr {
+        SingleInit(inner) => eval_const_int64(env, inner)
+        _ => None
+      }
+    Variable(n) =>
+      match env.genv.get(n) {
+        Some(
+          EnvEnum(
+            @cil.Const(@cil.CEnum(@cil.Const(@cil.CInt64(v, _, _)), _, _)),
+            _
+          )
+        ) => Some(v)
+        Some(EnvEnum(@cil.Const(@cil.CInt64(v, _, _)), _)) => Some(v)
+        _ => None
+      }
+    TypeSizeof(spec, decl) => {
+      let bt = conv_type_specifier(env, spec) catch {
+        _ => @cil.TInt(@cil.IInt, [])
+      }
+      let t = conv_decl_type(env, bt, decl) catch { _ => bt }
+      sizeof_basic(t)
+    }
+    ExprSizeof(_) => None
+    _ => None
+  }
+}
+
+///|
 fn conv_enum(
   env : ConvEnv,
   name : String,
   items_opt : Array[EnumItem]?,
-) -> @cil.EnumInfo {
+) -> @cil.EnumInfo raise ConversionError {
   let ei : @cil.EnumInfo = {
     ename: name,
     eitems: [],
@@ -677,22 +900,29 @@ fn conv_enum(
   let enum_typ = @cil.TEnum(ei, [])
   match items_opt {
     Some(items) => {
-      let mut value = 0L
+      let mut next_val = 0L
       for item in items {
-        let item_value = match item.value {
-          Nothing => {
-            let v = value
-            value = value + 1L
-            v
-          }
-          _ => {
-            value = value + 1L
-            value - 1L
-          }
+        let item_val = match item.value {
+          Nothing => next_val
+          _ =>
+            match eval_const_int64(env, item.value) {
+              Some(v) => v
+              None =>
+                raise ConversionError("Enum value is not an integer constant")
+            }
         }
-        let exp = @cil.Const(@cil.CInt64(item_value, @cil.IInt, None))
-        ei.eitems.push((item.name, exp, conv_loc(item.loc)))
-        env.genv[item.name] = EnvEnum(exp, enum_typ)
+        // Use folded constant value for eitems
+        let def_exp = @cil.Const(@cil.CInt64(item_val, @cil.IInt, None))
+        ei.eitems.push((item.name, def_exp, conv_loc(item.loc)))
+        let enum_const = @cil.Const(
+          @cil.CEnum(
+            @cil.Const(@cil.CInt64(item_val, @cil.IInt, None)),
+            item.name,
+            ei,
+          ),
+        )
+        env.genv[item.name] = EnvEnum(enum_const, enum_typ)
+        next_val = item_val + 1L
       }
     }
     None => ()
@@ -822,10 +1052,7 @@ fn conv_exp_impl(
             _ => (instrs, sub_exp, sub_type)
           }
         Memof => {
-          let lv : @cil.LVal = {
-            host: @cil.Mem(sub_exp),
-            offset: @cil.NoOffset,
-          }
+          let lv = @cil.LVal::{ host: @cil.Mem(sub_exp), offset: @cil.NoOffset }
           let result_type = match sub_type {
             TPtr(t, _) => t
             _ => int_type
@@ -859,9 +1086,7 @@ fn conv_exp_impl(
             Lval(lv) => {
               let one = @cil.Const(@cil.CInt64(1L, @cil.IInt, None))
               let new_val = @cil.BinOp(binop, sub_exp, one, sub_type)
-              let set_instr : @cil.Instr = @cil.Set(
-                lv, new_val, @cil.unknown_location,
-              )
+              let set_instr = @cil.Set(lv, new_val, @cil.unknown_location)
               instrs.push(set_instr)
               (instrs, sub_exp, sub_type)
             }
@@ -1395,6 +1620,67 @@ fn conv_init(
   typ : @cil.Typ,
   init_expr : InitExpression,
 ) -> @cil.Init? raise ConversionError {
+  fn offset_eq(a : @cil.Offset, b : @cil.Offset) -> Bool {
+    match (a, b) {
+      (@cil.NoOffset, @cil.NoOffset) => true
+      (@cil.Field(f1, r1), @cil.Field(f2, r2)) =>
+        f1.fname == f2.fname && offset_eq(r1, r2)
+      (@cil.Index(e1, r1), @cil.Index(e2, r2)) =>
+        @cil.compare_exp(e1, e2) && offset_eq(r1, r2)
+      _ => false
+    }
+  }
+
+  fn offset_compose(outer : @cil.Offset, inner : @cil.Offset) -> @cil.Offset {
+    match outer {
+      @cil.NoOffset => inner
+      @cil.Field(fi, rest) => @cil.Field(fi, offset_compose(rest, inner))
+      @cil.Index(e, rest) => @cil.Index(e, offset_compose(rest, inner))
+    }
+  }
+
+  fn array_len_const(len : @cil.Exp?) -> Int? {
+    match len {
+      Some(@cil.Const(@cil.CInt64(n, _, _))) =>
+        if n < 0L {
+          None
+        } else {
+          Some(n.to_int())
+        }
+      _ => None
+    }
+  }
+
+  fn flatten_slots(t0 : @cil.Typ) -> Array[@cil.Offset] {
+    // Match CIL's "subobject" stepping: NEXT_INIT advances by immediate fields/elements,
+    // not by recursively flattening nested aggregates.
+    let t = @cil.unroll_type(t0)
+    match t {
+      @cil.TComp(ci, _) =>
+        if ci.cfields.is_empty() {
+          []
+        } else if not(ci.cstruct) {
+          [@cil.Field(ci.cfields[0], @cil.NoOffset)]
+        } else {
+          ci.cfields.map(fn(fi) { @cil.Field(fi, @cil.NoOffset) })
+        }
+      @cil.TArray(_, len, _) =>
+        match array_len_const(len) {
+          Some(m) => {
+            let slots : Array[@cil.Offset] = []
+            let mut i = 0
+            while i < m {
+              slots.push(@cil.Index(@cil.integer(i), @cil.NoOffset))
+              i = i + 1
+            }
+            slots
+          }
+          None => []
+        }
+      _ => [@cil.NoOffset]
+    }
+  }
+
   match init_expr {
     NoInit => None
     SingleInit(expr) => {
@@ -1403,16 +1689,62 @@ fn conv_init(
     }
     CompoundInit(inits) => {
       let cil_inits : Array[(@cil.Offset, @cil.Init)] = []
+      let slots = flatten_slots(typ)
+      let mut next = 0
       for init in inits {
         let (what, sub_init) = init
-        let offset = conv_init_what(env, typ, what)
-        let sub_cil_init = conv_init(env, typ, sub_init)
+        let offset = match what {
+          NextInit =>
+            if next < slots.length() {
+              let o = slots[next]
+              next = next + 1
+              o
+            } else {
+              @cil.NoOffset
+            }
+          _ => {
+            let o = conv_init_what(env, typ, what)
+            // advance the implicit cursor if possible
+            let mut j = 0
+            while j < slots.length() {
+              if offset_eq(slots[j], o) {
+                next = j + 1
+                break
+              }
+              j = j + 1
+            }
+            o
+          }
+        }
+        let sub_t = @cil.type_of_offset(typ, offset)
+        let sub_cil_init = conv_init(env, sub_t, sub_init)
         match sub_cil_init {
           Some(i) => cil_inits.push((offset, i))
           None => ()
         }
       }
-      Some(@cil.CompoundInit(typ, cil_inits))
+      // normalize nested inits: pull sub-offsets to the top-level offsets
+      fn flatten_init_pairs(
+        base_off : @cil.Offset,
+        init : @cil.Init,
+        out : Array[(@cil.Offset, @cil.Init)],
+      ) -> Unit {
+        match init {
+          @cil.SingleInit(_) => out.push((base_off, init))
+          @cil.CompoundInit(_, items) =>
+            for item in items {
+              let (off, sub) = item
+              flatten_init_pairs(offset_compose(base_off, off), sub, out)
+            }
+        }
+      }
+
+      let normalized : Array[(@cil.Offset, @cil.Init)] = []
+      for item in cil_inits {
+        let (off, i) = item
+        flatten_init_pairs(off, i, normalized)
+      }
+      Some(@cil.CompoundInit(typ, normalized))
     }
   }
 }
@@ -1442,6 +1774,132 @@ fn make_temp_var(
   }
   env.locals.push(vi)
   vi
+}
+
+///|
+fn offset_eq_for_local_init(a : @cil.Offset, b : @cil.Offset) -> Bool {
+  match (a, b) {
+    (@cil.NoOffset, @cil.NoOffset) => true
+    (@cil.Field(f1, r1), @cil.Field(f2, r2)) =>
+      f1.fname == f2.fname && offset_eq_for_local_init(r1, r2)
+    (@cil.Index(e1, r1), @cil.Index(e2, r2)) =>
+      @cil.compare_exp(e1, e2) && offset_eq_for_local_init(r1, r2)
+    _ => false
+  }
+}
+
+///|
+fn offset_compose_for_local_init(
+  outer : @cil.Offset,
+  inner : @cil.Offset,
+) -> @cil.Offset {
+  match outer {
+    @cil.NoOffset => inner
+    @cil.Field(fi, rest) =>
+      @cil.Field(fi, offset_compose_for_local_init(rest, inner))
+    @cil.Index(e, rest) =>
+      @cil.Index(e, offset_compose_for_local_init(rest, inner))
+  }
+}
+
+///|
+fn array_len_const_for_local_init(len : @cil.Exp?) -> Int? {
+  match len {
+    Some(@cil.Const(@cil.CInt64(n, _, _))) =>
+      if n < 0L {
+        None
+      } else {
+        Some(n.to_int())
+      }
+    _ => None
+  }
+}
+
+///|
+fn flatten_slots_for_local_init(t0 : @cil.Typ) -> Array[@cil.Offset] {
+  let t = @cil.unroll_type(t0)
+  match t {
+    @cil.TComp(ci, _) =>
+      if ci.cfields.is_empty() {
+        []
+      } else if not(ci.cstruct) {
+        [@cil.Field(ci.cfields[0], @cil.NoOffset)]
+      } else {
+        ci.cfields.map(fn(fi) { @cil.Field(fi, @cil.NoOffset) })
+      }
+    @cil.TArray(_, len, _) =>
+      match array_len_const_for_local_init(len) {
+        Some(m) => {
+          let slots : Array[@cil.Offset] = []
+          let mut i = 0
+          while i < m {
+            let idx = @cil.integer(i)
+            slots.push(@cil.Index(idx, @cil.NoOffset))
+            i = i + 1
+          }
+          slots
+        }
+        None => []
+      }
+    _ => [@cil.NoOffset]
+  }
+}
+
+///|
+fn conv_local_init_to_instrs(
+  env : ConvEnv,
+  vi : @cil.VarInfo,
+  root_type : @cil.Typ,
+  target_off : @cil.Offset,
+  init_expr : InitExpression,
+  loc : @cil.Location,
+) -> Array[@cil.Instr] raise ConversionError {
+  let instrs : Array[@cil.Instr] = []
+  let target_type = @cil.type_of_offset(root_type, target_off)
+  match init_expr {
+    NoInit => instrs
+    SingleInit(e) => {
+      let lv : @cil.LVal = { host: @cil.Var(vi), offset: target_off }
+      let (set_instrs, _, _) = conv_exp_set(env, e, lv, target_type)
+      instrs.append(set_instrs)
+      instrs
+    }
+    CompoundInit(inits) => {
+      let slots = flatten_slots_for_local_init(target_type)
+      let mut next = 0
+      for init in inits {
+        let (what, sub_init) = init
+        let rel_off = match what {
+          NextInit =>
+            if next < slots.length() {
+              let o = slots[next]
+              next = next + 1
+              o
+            } else {
+              @cil.NoOffset
+            }
+          _ => {
+            let o = conv_init_what(env, target_type, what)
+            let mut j = 0
+            while j < slots.length() {
+              if offset_eq_for_local_init(slots[j], o) {
+                next = j + 1
+                break
+              }
+              j = j + 1
+            }
+            o
+          }
+        }
+        let abs_off = offset_compose_for_local_init(target_off, rel_off)
+        let sub_instrs = conv_local_init_to_instrs(
+          env, vi, root_type, abs_off, sub_init, loc,
+        )
+        instrs.append(sub_instrs)
+      }
+      instrs
+    }
+  }
 }
 
 ///|
@@ -1479,7 +1937,10 @@ pub fn conv_stmt(
     }
     Block(block, _) => {
       let stmts = block.bstmts.map(fn(s) { conv_stmt(env, s) })
-      let blk : @cil.Block = { battrs: [], bstmts: stmts }
+      let blk : @cil.Block = {
+        battrs: conv_block_attrs(env, block.battrs),
+        bstmts: stmts,
+      }
       @cil.mk_stmt(@cil.Block(blk))
     }
     If(cond, then_s, else_s, _) => {
@@ -1618,6 +2079,31 @@ pub fn conv_stmt(
     }
     Switch(e, body, _) => {
       let (instrs, exp, _) = conv_exp(env, e)
+      fn count_defaults(stmt : CabsStatement) -> Int {
+        match stmt {
+          Default(s, _) => 1 + count_defaults(s)
+          Case(_, s, _) => count_defaults(s)
+          CaseRange(_, _, s, _) => count_defaults(s)
+          Label(_, s, _) => count_defaults(s)
+          If(_, s1, s2, _) => count_defaults(s1) + count_defaults(s2)
+          While(_, s, _) => count_defaults(s)
+          DoWhile(_, s, _) => count_defaults(s)
+          For(_, _, _, s, _) => count_defaults(s)
+          Block(b, _) => {
+            let mut n = 0
+            for ss in b.bstmts {
+              n = n + count_defaults(ss)
+            }
+            n
+          }
+          Switch(_, _, _) => 0
+          _ => 0
+        }
+      }
+
+      if count_defaults(body) > 1 {
+        raise ConversionError("duplicate default")
+      }
       let body_stmt = conv_stmt(env, body)
       let body_block : @cil.Block = { battrs: [], bstmts: [body_stmt] }
       if instrs.is_empty() {
@@ -1633,7 +2119,14 @@ pub fn conv_stmt(
       }
     }
     Case(e, body, _) => {
-      let (_, exp, _) = conv_exp(env, e)
+      // Try constant folding for case expression
+      let exp = match eval_const_int64(env, e) {
+        Some(v) => @cil.Const(@cil.CInt64(v, @cil.IInt, None))
+        None => {
+          let (_, exp, _) = conv_exp(env, e)
+          exp
+        }
+      }
       let body_stmt = conv_stmt(env, body)
       body_stmt.labels.push(@cil.Case(exp, loc))
       body_stmt
@@ -1649,8 +2142,18 @@ pub fn conv_stmt(
       let ret_exp = match e {
         Nothing => None
         _ => {
-          let (_, exp, _) = conv_exp(env, e)
-          Some(exp)
+          let (instrs, exp, _) = conv_exp(env, e)
+          if instrs.is_empty() {
+            Some(exp)
+          } else {
+            let instr_stmt = @cil.mk_stmt(@cil.Instr(instrs))
+            let ret_stmt = @cil.mk_stmt(@cil.Return(Some(exp), loc))
+            let blk : @cil.Block = {
+              battrs: [],
+              bstmts: [instr_stmt, ret_stmt],
+            }
+            return @cil.mk_stmt(@cil.Block(blk))
+          }
         }
       }
       @cil.mk_stmt(@cil.Return(ret_exp, loc))
@@ -1672,15 +2175,44 @@ pub fn conv_stmt(
           let base_type = conv_type_specifier(env, ing.spec)
           let instrs : Array[@cil.Instr] = []
           for init_name in ing.init_names {
-            let var_type = conv_decl_type(
+            let var_type0 = conv_decl_type(
               env,
               base_type,
               init_name.name.decl_type,
             )
+            fn drop_const_attr(t : @cil.Typ) -> @cil.Typ {
+              match t {
+                @cil.TVoid(a) =>
+                  @cil.TVoid(a.filter(fn(x) { x.name != "const" }))
+                @cil.TInt(k, a) =>
+                  @cil.TInt(k, a.filter(fn(x) { x.name != "const" }))
+                @cil.TFloat(k, a) =>
+                  @cil.TFloat(k, a.filter(fn(x) { x.name != "const" }))
+                @cil.TPtr(bt, a) =>
+                  @cil.TPtr(bt, a.filter(fn(x) { x.name != "const" }))
+                @cil.TArray(bt, len, a) =>
+                  @cil.TArray(bt, len, a.filter(fn(x) { x.name != "const" }))
+                @cil.TFun(rt, ps, va, a) =>
+                  @cil.TFun(rt, ps, va, a.filter(fn(x) { x.name != "const" }))
+                @cil.TNamed(ti, a) =>
+                  @cil.TNamed(ti, a.filter(fn(x) { x.name != "const" }))
+                @cil.TComp(ci, a) =>
+                  @cil.TComp(ci, a.filter(fn(x) { x.name != "const" }))
+                @cil.TEnum(ei, a) =>
+                  @cil.TEnum(ei, a.filter(fn(x) { x.name != "const" }))
+                @cil.TBuiltinVaList(a) =>
+                  @cil.TBuiltinVaList(a.filter(fn(x) { x.name != "const" }))
+              }
+            }
+
+            let var_type = match init_name.init {
+              SingleInit(_) => drop_const_attr(var_type0)
+              _ => var_type0
+            }
             let vi : @cil.VarInfo = {
               vname: init_name.name.name,
               vtype: var_type,
-              vattr: [],
+              vattr: conv_name_attrs(env, init_name.name.attrs),
               vstorage: @cil.NoStorage,
               vglob: false,
               vinline: false,
@@ -1702,6 +2234,18 @@ pub fn conv_stmt(
                 }
                 let (init_instrs, _, _) = conv_exp_set(env, e, lval, var_type)
                 instrs.append(init_instrs)
+              }
+              CompoundInit(_) => {
+                let loc0 = conv_loc(dloc)
+                let more = conv_local_init_to_instrs(
+                  env,
+                  vi,
+                  var_type,
+                  @cil.NoOffset,
+                  init_name.init,
+                  loc0,
+                )
+                instrs.append(more)
               }
               _ => ()
             }
@@ -1730,16 +2274,28 @@ pub fn conv_stmt(
     TryFinally(try_block, finally_block, _) => {
       let try_stmts = try_block.bstmts.map(fn(s) { conv_stmt(env, s) })
       let finally_stmts = finally_block.bstmts.map(fn(s) { conv_stmt(env, s) })
-      let try_blk : @cil.Block = { battrs: [], bstmts: try_stmts }
-      let finally_blk : @cil.Block = { battrs: [], bstmts: finally_stmts }
+      let try_blk : @cil.Block = {
+        battrs: conv_block_attrs(env, try_block.battrs),
+        bstmts: try_stmts,
+      }
+      let finally_blk : @cil.Block = {
+        battrs: conv_block_attrs(env, finally_block.battrs),
+        bstmts: finally_stmts,
+      }
       @cil.mk_stmt(@cil.TryFinally(try_blk, finally_blk, loc))
     }
     TryExcept(try_block, filter_expr, except_block, _) => {
       let try_stmts = try_block.bstmts.map(fn(s) { conv_stmt(env, s) })
-      let try_blk : @cil.Block = { battrs: [], bstmts: try_stmts }
+      let try_blk : @cil.Block = {
+        battrs: conv_block_attrs(env, try_block.battrs),
+        bstmts: try_stmts,
+      }
       let (filter_instrs, filter_exp, _) = conv_exp(env, filter_expr)
       let except_stmts = except_block.bstmts.map(fn(s) { conv_stmt(env, s) })
-      let except_blk : @cil.Block = { battrs: [], bstmts: except_stmts }
+      let except_blk : @cil.Block = {
+        battrs: conv_block_attrs(env, except_block.battrs),
+        bstmts: except_stmts,
+      }
       @cil.mk_stmt(
         @cil.TryExcept(try_blk, (filter_instrs, filter_exp), except_blk, loc),
       )
@@ -1764,7 +2320,7 @@ pub fn conv_fundec(
   let func_var : @cil.VarInfo = {
     vname: sn.name.name,
     vtype: full_type,
-    vattr: [],
+    vattr: conv_name_attrs(env, sn.name.attrs),
     vstorage: @cil.NoStorage,
     vglob: true,
     vinline: false,
@@ -1776,12 +2332,30 @@ pub fn conv_fundec(
     vdescr: "",
     vdescrpure: true,
   }
-  let formals : Array[@cil.VarInfo] = params.map(fn(p) {
-    let (name, typ, _) = p
-    {
-      vname: name,
+  let local_env : Map[String, EnvEntry] = {}
+  let remaining : Map[String, Int] = {}
+  for p in params {
+    let (n, _, _) = p
+    if n.length() > 0 {
+      let prev = remaining.get(n).unwrap_or(0)
+      remaining[n] = prev + 1
+    }
+  }
+  let formals : Array[@cil.VarInfo] = []
+  for p in params {
+    let (orig_name, typ, attrs) = p
+    let mut printed_name = orig_name
+    if orig_name.length() > 0 {
+      let rem = remaining.get(orig_name).unwrap_or(0)
+      if rem > 1 {
+        printed_name = "\{orig_name}__\{(rem - 1).to_string()}"
+      }
+      remaining[orig_name] = rem - 1
+    }
+    let vi : @cil.VarInfo = {
+      vname: printed_name,
       vtype: typ,
-      vattr: [],
+      vattr: attrs,
       vstorage: @cil.NoStorage,
       vglob: false,
       vinline: false,
@@ -1793,10 +2367,14 @@ pub fn conv_fundec(
       vdescr: "",
       vdescrpure: true,
     }
-  })
-  let local_env : Map[String, EnvEntry] = {}
-  for formal in formals {
-    local_env[formal.vname] = EnvVar(formal)
+    formals.push(vi)
+    if orig_name.length() > 0 {
+      if printed_name == orig_name {
+        local_env[orig_name] = EnvVar(vi)
+      } else {
+        local_env[printed_name] = EnvVar(vi)
+      }
+    }
   }
   let local_comps : Map[String, @cil.CompInfo] = {}
   for k, v in env.comps {
@@ -1812,7 +2390,10 @@ pub fn conv_fundec(
   }
   let body_stmts = body.bstmts.map(fn(s) { conv_stmt(new_env, s) })
   resolve_gotos(new_env)
-  let body_block : @cil.Block = { battrs: [], bstmts: body_stmts }
+  let body_block : @cil.Block = {
+    battrs: conv_block_attrs(env, body.battrs),
+    bstmts: body_stmts,
+  }
   {
     svar: func_var,
     sformals: formals,
@@ -1840,7 +2421,7 @@ pub fn conv_global(
       let base_type = conv_type_specifier(env, ing.spec)
       match base_type {
         TComp(ci, _) =>
-          if ci.cdefined && ci.cfields.length() > 0 {
+          if ci.cname != "" && ci.cdefined && ci.cfields.length() > 0 {
             if not(env.emitted_comps.contains(ci.ckey)) {
               env.emitted_comps[ci.ckey] = true
               globals.push(@cil.GCompTag(ci, conv_loc(loc)))
@@ -1853,7 +2434,7 @@ pub fn conv_global(
         let vi : @cil.VarInfo = {
           vname: init_name.name.name,
           vtype: var_type,
-          vattr: [],
+          vattr: conv_name_attrs(env, init_name.name.attrs),
           vstorage: @cil.NoStorage,
           vglob: true,
           vinline: false,
@@ -1912,9 +2493,25 @@ pub fn conv_global(
         globals.push(@cil.GType(ti, conv_loc(loc)))
       }
     }
-    OnlyTypeDef(spec, _loc) => {
-      let _ = conv_type_specifier(env, spec)
-
+    OnlyTypeDef(spec, loc) => {
+      let base_type = conv_type_specifier(env, spec)
+      match base_type {
+        @cil.TComp(ci, _) =>
+          if ci.cname != "" &&
+            ci.cdefined &&
+            not(env.emitted_comps.contains(ci.ckey)) {
+            env.emitted_comps[ci.ckey] = true
+            globals.push(@cil.GCompTag(ci, conv_loc(loc)))
+          }
+        @cil.TEnum(ei, _) =>
+          if ei.ename != "" &&
+            ei.eitems.length() > 0 &&
+            not(env.emitted_enums.contains(ei.ename)) {
+            env.emitted_enums[ei.ename] = true
+            globals.push(@cil.GEnumTag(ei, conv_loc(loc)))
+          }
+        _ => ()
+      }
     }
     GlobAsm(s, loc) => globals.push(@cil.GAsm(s, conv_loc(loc)))
     Pragma(expr, loc) => {
@@ -1940,8 +2537,50 @@ pub fn conv_global(
 ///|
 pub fn conv_file(cabs : CabsFile) -> @cil.File raise ConversionError {
   let env = ConvEnv::new(cabs.filename)
+  fn spec_has_inline_and_extern(spec : Specifier) -> Bool {
+    let Specifier(items) = spec
+    let mut has_inline = false
+    let mut has_extern = false
+    for it in items {
+      match it {
+        SpecInline => has_inline = true
+        SpecStorage(Extern) => has_extern = true
+        _ => ()
+      }
+    }
+    has_inline && has_extern
+  }
+
+  let extinline_bases : Map[String, Bool] = {}
+  for def in cabs.definitions {
+    match def {
+      FunDef(sn, _, _, _) => {
+        let n = sn.name.name
+        if n.has_suffix("__extinline") {
+          let base = (n[0:n.length() - "__extinline".length()] catch {
+            _ => ""
+          }).to_string()
+          if base.length() > 0 {
+            extinline_bases[base] = true
+          }
+        }
+      }
+      _ => ()
+    }
+  }
   let globals : Array[@cil.Global] = []
   for def in cabs.definitions {
+    match def {
+      FunDef(sn, _, loc, _) => {
+        let n = sn.name.name
+        if not(n.has_suffix("__extinline")) &&
+          extinline_bases.contains(n) &&
+          spec_has_inline_and_extern(sn.spec) {
+          raise ConversionError("Trying to rename at \{loc}")
+        }
+      }
+      _ => ()
+    }
     let gs = conv_global(env, def)
     globals.append(gs)
   }

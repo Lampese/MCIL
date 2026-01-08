@@ -8,12 +8,7 @@ let cpp_keywords : Array[String] = [
 
 ///|
 pub fn is_cpp_keyword(name : String) -> Bool {
-  for kw in cpp_keywords {
-    if name == kw {
-      return true
-    }
-  }
-  false
+  cpp_keywords.contains(name)
 }
 
 ///|
@@ -229,10 +224,10 @@ pub fn canonicalize_file(f : @cil.File) -> Unit {
 
 ///|
 pub fn add_cpp_compat_defines() -> String {
-  let mut result = ""
-  result = result + "#define __inline inline\n"
-  result = result + "#define __restrict\n"
-  result = result + "#define __extension__\n"
-  result = result + "#define __attribute__(x)\n"
-  result
+  let result = StringBuilder::new()
+  result.write_string("#define __inline inline\n")
+  result.write_string("#define __restrict\n")
+  result.write_string("#define __extension__\n")
+  result.write_string("#define __attribute__(x)\n")
+  result.to_string()
 }

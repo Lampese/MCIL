@@ -2,4 +2,6 @@ target/
 .DS_Store
 .mooncakes/
 .moonagent/
+_exec_tmp/
 cil_output/
+_cil_tests_*

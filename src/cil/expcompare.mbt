@@ -160,7 +160,7 @@ fn compare_args(
         while i < a1.length() && same {
           let (_, t1, _) = a1[i]
           let (_, t2, _) = a2[i]
-          if not(compare_type(t1, t2)) {
+          if !compare_type(t1, t2) {
             same = false
           }
           i = i + 1
@@ -198,12 +198,7 @@ fn can_strip_cast(from : Typ, to : Typ) -> Bool {
 ///|
 fn has_const_attr(t : Typ) -> Bool {
   let attrs = get_type_attrs(t)
-  for attr in attrs {
-    if attr.name == "const" {
-      return true
-    }
-  }
-  false
+  attrs.iter().any(x => x.name == "const")
 }
 
 ///|
@@ -245,9 +240,7 @@ pub fn is_constant_exp(e : Exp) -> Bool {
 ///|
 pub fn is_integer_constant(e : Exp) -> Bool {
   match e {
-    Const(CInt64(_, _, _)) => true
-    Const(CChr(_)) => true
-    Const(CEnum(_, _, _)) => true
+    Const(CInt64(_, _, _)) | Const(CChr(_)) | Const(CEnum(_, _, _)) => true
     CastE(_, inner) => is_integer_constant(inner)
     _ => false
   }

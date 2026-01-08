@@ -299,27 +299,27 @@ fn Lexer::skip_whitespace(self : Lexer) -> Unit {
 
 ///|
 fn is_ident_start(c : Char) -> Bool {
-  (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c == '$'
+  c is ('a'..='z' | 'A'..='Z' | '_' | '$')
 }
 
 ///|
 fn is_ident_char(c : Char) -> Bool {
-  is_ident_start(c) || (c >= '0' && c <= '9')
+  is_ident_start(c) || is_digit(c)
 }
 
 ///|
 fn is_digit(c : Char) -> Bool {
-  c >= '0' && c <= '9'
+  c is ('0'..='9')
 }
 
 ///|
 fn is_alpha_or_underscore(c : Char) -> Bool {
-  (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'
+  c is ('a'..='z' | 'A'..='Z' | '_')
 }
 
 ///|
 fn is_hex_digit(c : Char) -> Bool {
-  is_digit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+  is_digit(c) || c is ('a'..='f' | 'A'..='F')
 }
 
 ///|
@@ -330,6 +330,23 @@ fn Lexer::read_identifier(self : Lexer) -> Token {
 
   }
   let text = try! self.source[start:self.pos]
+  if text == "__pragma" {
+    self.skip_whitespace()
+    if self.peek() == '(' {
+      let _ = self.advance()
+      let mut depth = 1
+      while depth > 0 && not(self.is_eof()) {
+        let c = self.peek()
+        let _ = self.advance()
+        if c == '(' {
+          depth = depth + 1
+        } else if c == ')' {
+          depth = depth - 1
+        }
+      }
+    }
+    return self.next_token()
+  }
   match text {
     "auto" => KwAuto
     "break" => KwBreak
@@ -367,6 +384,7 @@ fn Lexer::read_identifier(self : Lexer) -> Token {
     "volatile" | "__volatile" | "__volatile__" => KwVolatile
     "while" => KwWhile
     "_Bool" => KwBool
+    "_Float16" => KwFloat
     "_Complex" => KwComplex
     "_Imaginary" => KwImaginary
     "_Alignof" | "__alignof" | "__alignof__" => KwAlignof
@@ -408,6 +426,7 @@ fn Lexer::read_identifier(self : Lexer) -> Token {
     | "__RTTI"
     | "__FSEQ"
     | "__FSEQN"
+    | "__COMPAT"
     | "__SAFE"
     | "__WILD"
     | "__SEQ"
@@ -428,6 +447,7 @@ fn Lexer::read_identifier(self : Lexer) -> Token {
     | "__RTTI_TRUSTED"
     | "__COUNT"
     | "__COUNTOF"
+    | "__HEAPIFY"
     | "__HASROOM"
     | "__OPTSTRING"
     | "__SENTINEL"
@@ -451,11 +471,11 @@ fn Lexer::read_number(self : Lexer) -> Token {
   if self.peek() == '0' && (self.peek_next() == 'x' || self.peek_next() == 'X') {
     let _ = self.advance()
     let _ = self.advance()
-    while not(self.is_eof()) && is_hex_digit(self.peek()) {
+    while !self.is_eof() && is_hex_digit(self.peek()) {
       let _ = self.advance()
 
     }
-    while not(self.is_eof()) &&
+    while !self.is_eof() &&
           (
             self.peek() == 'u' ||
             self.peek() == 'U' ||
@@ -467,7 +487,7 @@ fn Lexer::read_number(self : Lexer) -> Token {
     }
     return IntConst(try! self.source[start:self.pos].to_string())
   }
-  while not(self.is_eof()) && is_digit(self.peek()) {
+  while !self.is_eof() && is_digit(self.peek()) {
     let _ = self.advance()
 
   }
@@ -476,10 +496,10 @@ fn Lexer::read_number(self : Lexer) -> Token {
     let next = self.peek_next()
     if next == '.' {
       ()
-    } else if not(is_alpha_or_underscore(next)) {
+    } else if !is_alpha_or_underscore(next) {
       is_float = true
       let _ = self.advance()
-      while not(self.is_eof()) && is_digit(self.peek()) {
+      while !self.is_eof() && is_digit(self.peek()) {
         let _ = self.advance()
 
       }
@@ -507,7 +527,7 @@ fn Lexer::read_number(self : Lexer) -> Token {
     }
     FloatConst(try! self.source[start:self.pos].to_string())
   } else {
-    while not(self.is_eof()) &&
+    while !self.is_eof() &&
           (
             self.peek() == 'u' ||
             self.peek() == 'U' ||
@@ -542,45 +562,45 @@ fn parse_escape_char(c : Char) -> Char {
 ///|
 fn Lexer::read_string(self : Lexer) -> Token {
   let _ = self.advance()
-  let mut result = ""
-  while not(self.is_eof()) && self.peek() != '"' {
+  let result = StringBuilder::new()
+  while !self.is_eof() && self.peek() != '"' {
     if self.peek() == '\\' {
       let _ = self.advance()
-      if not(self.is_eof()) {
+      if !self.is_eof() {
         let escaped = self.advance()
-        result = result + String::make(1, parse_escape_char(escaped))
+        result.write_string(String::make(1, parse_escape_char(escaped)))
       }
     } else {
-      result = result + String::make(1, self.advance())
+      result.write_string(String::make(1, self.advance()))
     }
   }
   if self.peek() == '"' {
     let _ = self.advance()
 
   }
-  StringConst(result)
+  StringConst(result.to_string())
 }
 
 ///|
 fn Lexer::read_char(self : Lexer) -> Token {
   let _ = self.advance()
-  let mut result = ""
+  let result = StringBuilder::new()
   while not(self.is_eof()) && self.peek() != '\'' {
     if self.peek() == '\\' {
       let _ = self.advance()
       if not(self.is_eof()) {
         let escaped = self.advance()
-        result = result + String::make(1, parse_escape_char(escaped))
+        result.write_string(String::make(1, parse_escape_char(escaped)))
       }
     } else {
-      result = result + String::make(1, self.advance())
+      result.write_string(String::make(1, self.advance()))
     }
   }
   if self.peek() == '\'' {
     let _ = self.advance()
 
   }
-  CharConst(result)
+  CharConst(result.to_string())
 }
 
 ///|
@@ -760,7 +780,6 @@ pub fn Lexer::next_token(self : Lexer) -> Token {
         Hash
       }
     '@' => {
-      // CIL patch system keywords: @transform, @transformExpr, @specifier, @expr, @name
       let start = self.pos
       while not(self.is_eof()) && is_ident_char(self.peek()) {
         let _ = self.advance()
@@ -788,7 +807,7 @@ pub fn Lexer::location(self : Lexer) -> CabsLoc {
 ///|
 pub fn tokenize(source : String, filename : String) -> Array[(Token, CabsLoc)] {
   let lexer = Lexer::new(source, filename)
-  let tokens : Array[(Token, CabsLoc)] = []
+  let tokens = []
   while true {
     let loc = lexer.location()
     let tok = lexer.next_token()

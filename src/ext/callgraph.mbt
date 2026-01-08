@@ -19,7 +19,7 @@ pub struct CallGraph {
 
 ///|
 pub fn CallGraph::new() -> CallGraph {
-  { nodes: Map::new(), functions: Map::new() }
+  { nodes: {}, functions: {} }
 }
 
 ///|
@@ -126,12 +126,11 @@ pub fn build_callgraph(f : @cil.File) -> CallGraph {
       _ => ()
     }
   }
-  cg.nodes.each(fn(caller_name, caller_node) {
-    for callee_name in caller_node.callees {
-      match cg.nodes.get(callee_name) {
-        Some(callee_node) => callee_node.callers.add(caller_name)
-        None => ()
-      }
+  cg.nodes.each((caller_name, caller_node) => for
+    callee_name in caller_node.callees {
+    match cg.nodes.get(callee_name) {
+      Some(callee_node) => callee_node.callers.add(caller_name)
+      None => ()
     }
   })
   cg
@@ -144,7 +143,7 @@ pub fn get_node(cg : CallGraph, name : String) -> CallNode? {
 
 ///|
 pub fn get_callees(cg : CallGraph, name : String) -> Array[String] {
-  let result : Array[String] = []
+  let result = []
   match cg.nodes.get(name) {
     Some(node) =>
       for callee in node.callees {
@@ -157,7 +156,7 @@ pub fn get_callees(cg : CallGraph, name : String) -> Array[String] {
 
 ///|
 pub fn get_callers(cg : CallGraph, name : String) -> Array[String] {
-  let result : Array[String] = []
+  let result = []
   match cg.nodes.get(name) {
     Some(node) =>
       for caller in node.callers {
@@ -179,10 +178,8 @@ pub fn calls(cg : CallGraph, a : String, b : String) -> Bool {
 ///|
 pub fn get_entry_functions(cg : CallGraph) -> Array[String] {
   let result = []
-  cg.nodes.each(fn(name, node) {
-    if node.callers.length() == 0 {
-      result.push(name)
-    }
+  cg.nodes.each((name, node) => if node.callers.length() == 0 {
+    result.push(name)
   })
   result
 }
@@ -190,10 +187,8 @@ pub fn get_entry_functions(cg : CallGraph) -> Array[String] {
 ///|
 pub fn get_leaf_functions(cg : CallGraph) -> Array[String] {
   let result = []
-  cg.nodes.each(fn(name, node) {
-    if node.callees.length() == 0 {
-      result.push(name)
-    }
+  cg.nodes.each((name, node) => if node.callees.length() == 0 {
+    result.push(name)
   })
   result
 }
@@ -201,10 +196,8 @@ pub fn get_leaf_functions(cg : CallGraph) -> Array[String] {
 ///|
 pub fn find_recursive_functions(cg : CallGraph) -> Array[String] {
   let result = []
-  cg.nodes.each(fn(name, _) {
-    if is_reachable(cg, name, name) {
-      result.push(name)
-    }
+  cg.nodes.each((name, _) => if is_reachable(cg, name, name) {
+    result.push(name)
   })
   result
 }
@@ -212,7 +205,7 @@ pub fn find_recursive_functions(cg : CallGraph) -> Array[String] {
 ///|
 pub fn is_reachable(cg : CallGraph, from : String, to : String) -> Bool {
   let visited = @hashset.new()
-  let worklist : Array[String] = []
+  let worklist = []
   match cg.nodes.get(from) {
     Some(node) =>
       for callee in node.callees {
@@ -220,7 +213,7 @@ pub fn is_reachable(cg : CallGraph, from : String, to : String) -> Bool {
       }
     None => return false
   }
-  while not(worklist.is_empty()) {
+  while !worklist.is_empty() {
     let current = worklist.pop().unwrap()
     if current == to {
       return true
@@ -232,7 +225,7 @@ pub fn is_reachable(cg : CallGraph, from : String, to : String) -> Bool {
     match cg.nodes.get(current) {
       Some(node) =>
         for callee in node.callees {
-          if not(visited.contains(callee)) {
+          if !visited.contains(callee) {
             worklist.push(callee)
           }
         }
@@ -244,20 +237,18 @@ pub fn is_reachable(cg : CallGraph, from : String, to : String) -> Bool {
 
 ///|
 pub fn topological_sort(cg : CallGraph) -> Array[String]? {
-  let in_degree : Map[String, Int] = Map::new()
-  let result : Array[String] = []
-  let worklist : Array[String] = []
-  cg.nodes.each(fn(name, _) { in_degree.set(name, 0) })
-  cg.nodes.each(fn(_, node) {
-    for callee in node.callees {
-      match in_degree.get(callee) {
-        Some(d) => in_degree.set(callee, d + 1)
-        None => ()
-      }
+  let in_degree = {}
+  let result = []
+  let worklist = []
+  cg.nodes.each((name, _) => in_degree.set(name, 0))
+  cg.nodes.each((_, node) => for callee in node.callees {
+    match in_degree.get(callee) {
+      Some(d) => in_degree.set(callee, d + 1)
+      None => ()
     }
   })
-  in_degree.each(fn(name, d) { if d == 0 { worklist.push(name) } })
-  while not(worklist.is_empty()) {
+  in_degree.each((name, d) => if d == 0 { worklist.push(name) })
+  while !worklist.is_empty() {
     let current = worklist.pop().unwrap()
     result.push(current)
     match cg.nodes.get(current) {
@@ -286,49 +277,52 @@ pub fn topological_sort(cg : CallGraph) -> Array[String]? {
 
 ///|
 pub fn to_dot(cg : CallGraph) -> String {
-  let mut result = "digraph callgraph {\n"
-  result = result + "  rankdir=TB;\n"
-  result = result + "  node [shape=box];\n"
+  let result = StringBuilder::new()
+  result.write_string("digraph callgraph {\n")
+  result.write_string("  rankdir=TB;\n")
+  result.write_string("  node [shape=box];\n")
   let quote = "\""
   let escaped_quote = "\\\""
-  cg.nodes.each(fn(name, _) {
+  cg.nodes.each((name, _) => {
     let label = name.replace(old=quote, new=escaped_quote)
-    result = result + "  \{quote}\{label}\{quote};\n"
+    result.write_string("  \{quote}\{label}\{quote};\n")
   })
-  cg.nodes.each(fn(caller, node) {
+  cg.nodes.each((caller, node) => {
     let caller_label = caller.replace(old=quote, new=escaped_quote)
     for callee in node.callees {
       let callee_label = callee.replace(old=quote, new=escaped_quote)
-      result = result +
-        "  \{quote}\{caller_label}\{quote} -> \{quote}\{callee_label}\{quote};\n"
+      result.write_string(
+        "  \{quote}\{caller_label}\{quote} -> \{quote}\{callee_label}\{quote};\n",
+      )
     }
   })
-  result = result + "}\n"
-  result
+  result.write_string("}\n")
+  result.to_string()
 }
 
 ///|
 pub fn print_callgraph(cg : CallGraph) -> String {
-  let mut result = "Call Graph Summary:\n"
-  result = result + "  Total functions: \{cg.nodes.length()}\n\n"
+  let result = StringBuilder::new()
+  result.write_string("Call Graph Summary:\n")
+  result.write_string("  Total functions: \{cg.nodes.length()}\n\n")
   let sep = ", "
-  cg.nodes.each(fn(name, node) {
-    result = result + "Function: \{name}\n"
+  cg.nodes.each((name, node) => {
+    result.write_string("Function: \{name}\n")
     if node.callees.length() > 0 {
       let callees = []
       for callee in node.callees {
         callees.push(callee)
       }
-      result = result + "  Calls: \{callees.join(sep)}\n"
+      result.write_string("  Calls: \{callees.join(sep)}\n")
     }
     if node.callers.length() > 0 {
       let callers = []
       for caller in node.callers {
         callers.push(caller)
       }
-      result = result + "  Called by: \{callers.join(sep)}\n"
+      result.write_string("  Called by: \{callers.join(sep)}\n")
     }
-    result = result + "\n"
+    result.write_string("\n")
   })
-  result
+  result.to_string()
 }

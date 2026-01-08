@@ -611,6 +611,235 @@ test "cabs2cil: initialized global variable" {
 }
 
 ///|
+test "cabs2cil: ccured __RTTI attaches to pointer type" {
+  let source = "void * __RTTI r;"
+  let file = parse_and_convert(source, "test.c")
+  let mut ok = false
+  for g in file.globals {
+    match g {
+      @cil.GVarDecl(vi, _) =>
+        if vi.vname == "r" {
+          match @cil.unroll_type(vi.vtype) {
+            @cil.TPtr(_, attrs) =>
+              ok = attrs.iter().any(fn(a) { a.name == "__RTTI" })
+            _ => ()
+          }
+        }
+      _ => ()
+    }
+  }
+  inspect(ok, content="true")
+}
+
+///|
+test "cabs2cil: ccured __TAGGED attaches to union type" {
+  let source = "union { int i; } __TAGGED u;"
+  let file = parse_and_convert(source, "test.c")
+  let mut ok = false
+  for g in file.globals {
+    match g {
+      @cil.GVarDecl(vi, _) =>
+        if vi.vname == "u" {
+          match @cil.unroll_type(vi.vtype) {
+            @cil.TComp(_, attrs) =>
+              ok = attrs.iter().any(fn(a) { a.name == "__TAGGED" })
+            _ => ()
+          }
+        }
+      _ => ()
+    }
+  }
+  inspect(ok, content="true")
+}
+
+///|
+test "printer: ccured attrs are printed" {
+  let src =
+    #|union { int i; } __TAGGED u;
+    #|void * __RTTI r;
+  let file = parse_and_convert(src, "test.c")
+  let out = @cil.print_file(file)
+  inspect(out.contains("__TAGGED u"), content="true")
+  inspect(out.contains("void * __RTTI r"), content="true")
+}
+
+///|
+test "parser/cabs2cil: ccured __SELECTEDWHEN is preserved as field attribute" {
+  let src =
+    #|struct host { int tag; union { int anint __SELECTEDWHEN(tag == 0); } data; };
+  let file = parse_and_convert(src, "test.c")
+  let mut ok = false
+  for g in file.globals {
+    match g {
+      @cil.GCompTag(ci, _) =>
+        if ci.cname == "host" {
+          for fi in ci.cfields {
+            if fi.fname == "data" {
+              match @cil.unroll_type(fi.ftype) {
+                @cil.TComp(uci, _) =>
+                  for ufi in uci.cfields {
+                    if ufi.fname == "anint" {
+                      ok = ufi.fattr
+                        .iter()
+                        .any(fn(a) {
+                          a.name == "__SELECTEDWHEN" && not(a.params.is_empty())
+                        })
+                    }
+                  }
+                _ => ()
+              }
+            }
+          }
+        }
+      _ => ()
+    }
+  }
+  inspect(ok, content="true")
+}
+
+///|
+test "parser/cabs2cil: ccured __SELECTEDWHEN preserved in named union field (regression)" {
+  let src =
+    #|struct host { int tag; union bar { int anint __SELECTEDWHEN(tag == 0); } data; };
+  let file = parse_and_convert(src, "test.c")
+  let mut ok = false
+  for g in file.globals {
+    match g {
+      @cil.GCompTag(ci, _) =>
+        if ci.cname == "host" {
+          for fi in ci.cfields {
+            if fi.fname == "data" {
+              match @cil.unroll_type(fi.ftype) {
+                @cil.TComp(uci, _) =>
+                  if uci.cname == "bar" {
+                    for ufi in uci.cfields {
+                      if ufi.fname == "anint" {
+                        ok = ufi.fattr
+                          .iter()
+                          .any(fn(a) {
+                            a.name == "__SELECTEDWHEN" &&
+                            not(a.params.is_empty())
+                          })
+                      }
+                    }
+                  }
+                _ => ()
+              }
+            }
+          }
+        }
+      _ => ()
+    }
+  }
+  inspect(ok, content="true")
+}
+
+///|
+test "printer: prints __SELECTEDWHEN field attribute" {
+  let src =
+    #|struct host { int tag; union { int anint __SELECTEDWHEN(tag == 0); } data; };
+  let file = parse_and_convert(src, "test.c")
+  let out = @cil.print_file(file)
+  inspect(out.contains("__SELECTEDWHEN"), content="true")
+  inspect(out.contains("tag == 0"), content="true")
+}
+
+///|
+test "printer: prints __HEAPIFY variable attribute" {
+  let src = "int i __HEAPIFY = 5;"
+  let file = parse_and_convert(src, "test.c")
+  let out = @cil.print_file(file)
+  inspect(out.contains("__HEAPIFY"), content="true")
+}
+
+///|
+test "cabs2cil: block battrs keeps __NOCUREBLOCK" {
+  let src = "int main(){ { __NOCUREBLOCK int x = 0; } return 0; }"
+  let file = parse_and_convert(src, "test.c")
+  let mut ok = false
+  letrec visit_stmt = fn(s : @cil.Stmt) -> Unit {
+    match s.skind {
+      @cil.Block(b) => {
+        if b.battrs.iter().any(fn(a) { a.name == "__NOCUREBLOCK" }) {
+          ok = true
+        }
+        b.bstmts.each(visit_stmt)
+      }
+      @cil.If(_, b1, b2, _) => {
+        b1.bstmts.each(visit_stmt)
+        b2.bstmts.each(visit_stmt)
+      }
+      @cil.Switch(_, b, _, _) => b.bstmts.each(visit_stmt)
+      @cil.Loop(b, _, _, _) => b.bstmts.each(visit_stmt)
+      @cil.TryFinally(b1, b2, _) => {
+        b1.bstmts.each(visit_stmt)
+        b2.bstmts.each(visit_stmt)
+      }
+      @cil.TryExcept(b1, _, b2, _) => {
+        b1.bstmts.each(visit_stmt)
+        b2.bstmts.each(visit_stmt)
+      }
+      _ => ()
+    }
+  }
+
+  for g in file.globals {
+    match g {
+      @cil.GFun(fd, _) =>
+        if fd.svar.vname == "main" {
+          fd.sbody.bstmts.each(visit_stmt)
+        }
+      _ => ()
+    }
+  }
+  inspect(ok, content="true")
+}
+
+///|
+test "printer: prints block battrs (__NOCUREBLOCK)" {
+  let src = "int main(){ { __NOCUREBLOCK int x = 0; } return 0; }"
+  let file = parse_and_convert(src, "test.c")
+  let out = @cil.print_file(file)
+  inspect(out.contains("__NOCUREBLOCK"), content="true")
+}
+
+///|
+test "printer: typedef anonymous enum printed inline" {
+  let src = "typedef enum { A = 0, B = 1 } idtype_t; int f(idtype_t x){ return (int)x; }"
+  let file = parse_and_convert(src, "test.c")
+  let out = @cil.print_file(file)
+  inspect(out.contains("typedef enum {"), content="true")
+  inspect(out.contains("} idtype_t;"), content="true")
+}
+
+///|
+test "cabs2cil/printer: union8-style tagged union wrongfield detectable" {
+  let src =
+    #|#include "testharness.h"
+    #|union { int i; void * __RTTI vp; double d; } __TAGGED u;
+    #|int main(){ unsigned long x = 0; u.i = (int)x; void * __RTTI v = u.vp; (void)v; SUCCESS; }
+  let file = parse_and_convert(src, "test.c")
+  let out = @cil.print_file(file)
+  // Ensure the key pieces survive printing (we diagnose wrongfield in exec runner on IR).
+  inspect(out.contains("__TAGGED u"), content="true")
+  inspect(out.contains("void * __RTTI v"), content="true")
+  inspect(out.contains("u.i"), content="true")
+  inspect(out.contains("u.vp"), content="true")
+}
+
+///|
+test "cabs2cil: enum value must be integer constant" {
+  let src = "enum { x = 3.0 };"
+  let got = try {
+    let _ = parse_and_convert(src, "test.c")
+    "ok"
+  } catch {
+    ConversionError(msg) => msg
+  }
+  inspect(got.contains("Enum value is not an integer constant"), content="true")
+}
+
+///|
 test "cabs2cil: print simple function" {
   let source = "int identity(int x) { return x; }"
   let cil_file = parse_and_convert(source, "test.c")
@@ -1282,4 +1511,59 @@ test "cabs2cil: designated initializer for array" {
       }
     })
   inspect(has_var, content="true")
+}
+
+///|
+test "cabs2cil: local compound initializer lowered to assignments" {
+  let source =
+    #|struct S { int a; int *p; };
+    #|int f() { int local; struct S s = { 1, &local }; return s.a; }
+  let file = parse_and_convert(source, "test.c")
+  let output = @cil.print_file(file)
+  inspect(output.contains("s.a = 1;"), content="true")
+  inspect(output.contains("s.p = &(local);"), content="true")
+}
+
+///|
+test "cabs2cil: nested local compound initializer lowered to assignments" {
+  let source =
+    #|struct S { int a; int *p; };
+    #|struct T { struct S s; int b; };
+    #|int f() { int local; struct T t = { { 1, &local }, 2 }; return t.b; }
+  let file = parse_and_convert(source, "test.c")
+  let output = @cil.print_file(file)
+  inspect(output.contains("t.s.a = 1;"), content="true")
+  inspect(output.contains("t.s.p = &(local);"), content="true")
+  inspect(output.contains("t.b = 2;"), content="true")
+}
+
+///|
+test "cabs2cil: global nested compound initializer prints nested designators" {
+  let source =
+    #|struct S { int a; int *p; };
+    #|struct T { struct S s; int b; };
+    #|int g;
+    #|struct T t = { { 1, &g }, 2 };
+  let file = parse_and_convert(source, "test.c")
+  let output = @cil.print_file(file)
+  // Global initializers are printed as designators inside braces (no leading variable name).
+  inspect(output.contains(".s.a = 1"), content="true")
+  inspect(output.contains(".s.p = &(g)"), content="true")
+  inspect(output.contains(".b = 2"), content="true")
+}
+
+///|
+test "cabs2cil: global array nested compound initializer prints index+field path" {
+  let source =
+    #|struct S { int a; int b; };
+    #|struct T { struct S s; int c; };
+    #|struct T arr[2] = { { { 1, 2 }, 3 }, { { 4, 5 }, 6 } };
+  let file = parse_and_convert(source, "test.c")
+  let output = @cil.print_file(file)
+  inspect(output.contains("[0].s.a = 1"), content="true")
+  inspect(output.contains("[0].s.b = 2"), content="true")
+  inspect(output.contains("[0].c = 3"), content="true")
+  inspect(output.contains("[1].s.a = 4"), content="true")
+  inspect(output.contains("[1].s.b = 5"), content="true")
+  inspect(output.contains("[1].c = 6"), content="true")
 }

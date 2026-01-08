@@ -54,7 +54,7 @@ fn find_case_labeled_stmts(block : Block) -> Array[Stmt] {
 
 ///|
 fn find_addr_of_label_stmts(block : Block) -> Array[Stmt] {
-  let result : Array[Stmt] = []
+  let result = []
   letrec visit_exp = fn(e : Exp) -> Unit {
     match e {
       AddrOfLabel(s) => result.push(s)
@@ -180,7 +180,7 @@ fn cfg_stmts(
   rlabels : Array[Stmt],
 ) -> Unit {
   let len = stmts.length()
-  for i = 0; i < len; i = i + 1 {
+  for i in 0..<len {
     let s = stmts[i]
     let next_s = if i + 1 < len { Some(stmts[i + 1]) } else { next }
     cfg_stmt(s, next_s, break_stmt, cont, node_list, rlabels)
@@ -201,15 +201,15 @@ fn cfg_block(
 
 ///|
 fn stmt_in_list(s : Stmt, list : Array[Stmt]) -> Bool {
-  list.iter().any(fn(s2) { physical_equal(s, s2) })
+  list.iter().any(s2 => physical_equal(s, s2))
 }
 
 ///|
 fn add_succ(s : Stmt, n : Stmt) -> Unit {
-  if not(stmt_in_list(n, s.succs)) {
+  if !stmt_in_list(n, s.succs) {
     s.succs.push(n)
   }
-  if not(stmt_in_list(s, n.preds)) {
+  if !stmt_in_list(s, n.preds) {
     n.preds.push(s)
   }
 }
@@ -311,8 +311,8 @@ fn cfg_stmt(
 
 ///|
 pub fn forall_stmts(fd : FunDec, todo : (Stmt) -> Unit) -> Unit {
-  letrec fas_block = fn(b : Block) -> Unit { b.bstmts.each(fas_stmt) }
-  and fas_stmt = fn(s : Stmt) -> Unit {
+  letrec fas_block = fn(b : Block) { b.bstmts.each(fas_stmt) }
+  and fas_stmt = fn(s : Stmt) {
     todo(s)
     match s.skind {
       Block(b) => fas_block(b)
@@ -338,7 +338,7 @@ pub fn forall_stmts(fd : FunDec, todo : (Stmt) -> Unit) -> Unit {
 
 ///|
 pub fn clear_cfg_info(fd : FunDec) -> Unit {
-  forall_stmts(fd, fn(s) {
+  forall_stmts(fd, s => {
     s.succs.clear()
     s.preds.clear()
   })
@@ -347,11 +347,9 @@ pub fn clear_cfg_info(fd : FunDec) -> Unit {
 ///|
 pub fn clear_file_cfg(f : File) -> Unit {
   start_id.val = 0
-  f.globals.each(fn(g) {
-    match g {
-      GFun(fd, _) => clear_cfg_info(fd)
-      _ => ()
-    }
+  f.globals.each(g => match g {
+    GFun(fd, _) => clear_cfg_info(fd)
+    _ => ()
   })
 }
 
@@ -405,7 +403,7 @@ fn cfg_node_label(s : Stmt) -> String {
 
 ///|
 pub fn print_cfg_dot(fd : FunDec) -> String {
-  let lines : Array[String] = []
+  let lines = []
   lines.push("digraph CFG_\{fd.svar.vname} {")
   forall_stmts(fd, fn(s) {
     let name = cfg_node_name(s)

@@ -94,13 +94,13 @@ fn Parser::pop_context(self : Parser) -> Unit {
 ///|
 fn Parser::check(self : Parser, expected : Token) -> Bool {
   match (self.current(), expected) {
-    (Eof, Eof) => true
-    (Ident(_), Ident(_)) => true
-    (NamedType(_), NamedType(_)) => true
-    (IntConst(_), IntConst(_)) => true
-    (FloatConst(_), FloatConst(_)) => true
-    (StringConst(_), StringConst(_)) => true
-    (CharConst(_), CharConst(_)) => true
+    (Eof, Eof)
+    | (Ident(_), Ident(_))
+    | (NamedType(_), NamedType(_))
+    | (IntConst(_), IntConst(_))
+    | (FloatConst(_), FloatConst(_))
+    | (StringConst(_), StringConst(_))
+    | (CharConst(_), CharConst(_)) => true
     (a, b) => token_eq(a, b)
   }
 }
@@ -127,6 +127,7 @@ fn token_eq(a : Token, b : Token) -> Bool {
     | (KwInline, KwInline)
     | (KwInt, KwInt)
     | (KwLong, KwLong)
+    | (KwLabel, KwLabel)
     | (KwRegister, KwRegister)
     | (KwRestrict, KwRestrict)
     | (KwReturn, KwReturn)
@@ -253,6 +254,38 @@ fn token_to_string(tok : Token) -> String {
 }
 
 ///|
+fn is_bad_alpha_name(name : String) -> Bool {
+  if not(name.contains("___")) {
+    return false
+  }
+  let mut i = 0
+  while i + 3 < name.length() {
+    if name[i] == '_' && name[i + 1] == '_' && name[i + 2] == '_' {
+      let mut j = i + 3
+      let mut digits = 0
+      let mut all_nine = true
+      while j < name.length() {
+        let c = name[j]
+        if c >= '0' && c <= '9' {
+          digits = digits + 1
+          if c != '9' {
+            all_nine = false
+          }
+          j = j + 1
+        } else {
+          break
+        }
+      }
+      if digits >= 9 && all_nine {
+        return true
+      }
+    }
+    i = i + 1
+  }
+  false
+}
+
+///|
 fn Parser::is_type_specifier_start(self : Parser) -> Bool {
   match self.current() {
     KwVoid
@@ -320,7 +353,7 @@ fn Parser::parse_primary_expr(self : Parser) -> CabsExpression raise ParseError 
     }
     CharConst(s) => {
       let _ = self.advance()
-      let chars : Array[Int64] = []
+      let chars = []
       for c in s {
         chars.push(c.to_int().to_int64())
       }
@@ -328,7 +361,7 @@ fn Parser::parse_primary_expr(self : Parser) -> CabsExpression raise ParseError 
     }
     WideStringConst(s) => {
       let _ = self.advance()
-      let chars : Array[Int64] = []
+      let chars = []
       for c in s {
         chars.push(c.to_int().to_int64())
       }
@@ -347,7 +380,7 @@ fn Parser::parse_primary_expr(self : Parser) -> CabsExpression raise ParseError 
     }
     WideCharConst(s) => {
       let _ = self.advance()
-      let chars : Array[Int64] = []
+      let chars = []
       for c in s {
         chars.push(c.to_int().to_int64())
       }
@@ -988,6 +1021,12 @@ fn Parser::parse_specifier(self : Parser) -> Specifier raise ParseError {
         specs.push(SpecAttr({ name, args: [] }))
         continue
       }
+      KwCcuredAttr(name) => {
+        let _ = self.advance()
+        let args = self.parse_ccured_attr_args()
+        specs.push(SpecAttr({ name, args }))
+        continue
+      }
       KwThread => {
         let _ = self.advance()
         Some(SpecStorage(CabsStorage::Static))
@@ -1084,14 +1123,14 @@ fn Parser::parse_field_declarator(
   self : Parser,
 ) -> (Name, CabsExpression?) raise ParseError {
   let loc = self.current_loc()
-  let (decl_name, decl_type) = self.parse_declarator()
+  let (decl_name, decl_type, decl_attrs) = self.parse_declarator()
   let bitfield = if self.check(Colon) {
     let _ = self.advance()
     Some(self.parse_conditional_expr())
   } else {
     None
   }
-  let attrs : Array[CabsAttribute] = []
+  let attrs = decl_attrs
   while self.check(KwAttribute) || self.check(KwDeclspec) {
     let _ = self.advance()
     attrs.append(self.parse_attribute_list())
@@ -1190,7 +1229,32 @@ fn Parser::parse_attribute_list(self : Parser) -> Array[CabsAttribute] {
 }
 
 ///|
-fn Parser::skip_trailing_attributes(self : Parser) -> Unit {
+fn Parser::parse_ccured_attr_args(
+  self : Parser,
+) -> Array[CabsExpression] raise ParseError {
+  let args : Array[CabsExpression] = []
+  if not(self.check(LParen)) {
+    return args
+  }
+  let _ = self.advance()
+  if self.check(RParen) {
+    let _ = self.advance()
+    return args
+  }
+  args.push(self.parse_expression())
+  while self.check(Comma) {
+    let _ = self.advance()
+    args.push(self.parse_expression())
+  }
+  let _ = self.expect(RParen)
+  args
+}
+
+///|
+fn Parser::take_trailing_attributes(
+  self : Parser,
+) -> Array[CabsAttribute] raise ParseError {
+  let out : Array[CabsAttribute] = []
   while true {
     match self.current() {
       KwAttribute | KwDeclspec => {
@@ -1205,44 +1269,46 @@ fn Parser::skip_trailing_attributes(self : Parser) -> Unit {
 
         }
       }
-      KwCcuredAttr(_) => {
+      KwCcuredAttr(name) => {
         let _ = self.advance()
-        if self.check(LParen) {
-          let _ = self.parse_attribute_list()
-
-        }
+        let args = self.parse_ccured_attr_args()
+        out.push({ name, args })
       }
       _ => break
     }
   }
+  out
 }
 
 ///|
 fn Parser::parse_declarator(
   self : Parser,
-) -> (String, DeclType) raise ParseError {
-  while true {
-    match self.current() {
-      KwCcuredAttr(_) => {
-        let _ = self.advance()
-
-      }
-      _ => break
-    }
-  }
+) -> (String, DeclType, Array[CabsAttribute]) raise ParseError {
   let mut decl_type = JustBase
-  while self.check(Star) {
-    let _ = self.advance()
+  while true {
     while true {
       match self.current() {
-        KwConst
-        | KwVolatile
-        | KwRestrict
-        | KwNullability(_)
-        | KwCcuredAttr(_)
-        | KwMsAttr(_) => {
+        KwCcuredAttr(_) => {
           let _ = self.advance()
 
+        }
+        _ => break
+      }
+    }
+    if not(self.check(Star)) {
+      break
+    }
+    let _ = self.advance()
+    let ptr_attrs : Array[CabsAttribute] = []
+    while true {
+      match self.current() {
+        KwConst | KwVolatile | KwRestrict | KwNullability(_) | KwMsAttr(_) => {
+          let _ = self.advance()
+
+        }
+        KwCcuredAttr(name) => {
+          let _ = self.advance()
+          ptr_attrs.push({ name, args: [] })
         }
         KwAttribute | KwDeclspec => {
           let _ = self.advance()
@@ -1252,10 +1318,10 @@ fn Parser::parse_declarator(
         _ => break
       }
     }
-    decl_type = Ptr([], decl_type)
+    decl_type = Ptr(ptr_attrs, decl_type)
   }
   let (name, inner) = self.parse_direct_declarator()
-  self.skip_trailing_attributes()
+  let trailing_attrs = self.take_trailing_attributes()
   fn combine(outer : DeclType, inner : DeclType) -> DeclType {
     match outer {
       JustBase => inner
@@ -1266,7 +1332,7 @@ fn Parser::parse_declarator(
     }
   }
 
-  (name, combine(decl_type, inner))
+  (name, combine(decl_type, inner), trailing_attrs)
 }
 
 ///|
@@ -1287,12 +1353,17 @@ fn Parser::parse_direct_declarator(
         _ => break
       }
     }
-    let (n, d) = self.parse_declarator()
+    let (n, d, _) = self.parse_declarator()
     let _ = self.expect(RParen)
     (n, d)
   } else {
     match self.current() {
       Ident(n) | NamedType(n) => {
+        if is_bad_alpha_name(n) {
+          raise ParseError(
+            "Encountered a variable name containing ___ and many digits",
+          )
+        }
         let _ = self.advance()
         (n, JustBase)
       }
@@ -1362,8 +1433,8 @@ fn Parser::parse_parameter_declaration(
 ) -> SingleName raise ParseError {
   let spec = self.parse_specifier()
   let loc = self.current_loc()
-  let (name, decl_type) = self.parse_declarator()
-  { spec, name: { name, decl_type, attrs: [], loc } }
+  let (name, decl_type, attrs) = self.parse_declarator()
+  { spec, name: { name, decl_type, attrs, loc } }
 }
 
 ///|
@@ -1371,7 +1442,7 @@ fn Parser::parse_type_name(
   self : Parser,
 ) -> (Specifier, DeclType) raise ParseError {
   let spec = self.parse_specifier()
-  let (_, decl_type) = self.parse_declarator()
+  let (_, decl_type, _) = self.parse_declarator()
   (spec, decl_type)
 }
 
@@ -1549,18 +1620,30 @@ pub fn Parser::parse_statement(self : Parser) -> CabsStatement raise ParseError 
         let _ = self.advance()
         let expr2 = self.parse_conditional_expr()
         let _ = self.expect(Colon)
-        let stmt = self.parse_statement()
+        let stmt = if self.check(RBrace) {
+          Nop(loc)
+        } else {
+          self.parse_statement()
+        }
         CaseRange(expr, expr2, stmt, loc)
       } else {
         let _ = self.expect(Colon)
-        let stmt = self.parse_statement()
+        let stmt = if self.check(RBrace) {
+          Nop(loc)
+        } else {
+          self.parse_statement()
+        }
         Case(expr, stmt, loc)
       }
     }
     KwDefault => {
       let _ = self.advance()
       let _ = self.expect(Colon)
-      let stmt = self.parse_statement()
+      let stmt = if self.check(RBrace) {
+        Nop(loc)
+      } else {
+        self.parse_statement()
+      }
       Default(stmt, loc)
     }
     KwBreak => {
@@ -1826,14 +1909,14 @@ fn Parser::parse_init_declarator_list(
 ///|
 fn Parser::parse_init_declarator(self : Parser) -> InitName raise ParseError {
   let loc = self.current_loc()
-  let (name, decl_type) = self.parse_declarator()
+  let (name, decl_type, attrs) = self.parse_declarator()
   let init = if self.check(Eq) {
     let _ = self.advance()
     self.parse_initializer()
   } else {
     NoInit
   }
-  { name: { name, decl_type, attrs: [], loc }, init }
+  { name: { name, decl_type, attrs, loc }, init }
 }
 
 ///|
@@ -1952,16 +2035,16 @@ fn Parser::parse_old_pardef_list(
     let names : Array[Name] = []
     if not(self.check(Semi)) {
       let decl_loc = self.current_loc()
-      let (pname, pdecl) = self.parse_declarator()
-      names.push({ name: pname, decl_type: pdecl, attrs: [], loc: decl_loc })
+      let (pname, pdecl, pattrs) = self.parse_declarator()
+      names.push({ name: pname, decl_type: pdecl, attrs: pattrs, loc: decl_loc })
       while self.check(Comma) {
         let _ = self.advance()
         let decl_loc2 = self.current_loc()
-        let (pname2, pdecl2) = self.parse_declarator()
+        let (pname2, pdecl2, pattrs2) = self.parse_declarator()
         names.push({
           name: pname2,
           decl_type: pdecl2,
-          attrs: [],
+          attrs: pattrs2,
           loc: decl_loc2,
         })
       }
@@ -2132,7 +2215,7 @@ pub fn Parser::parse_definition(self : Parser) -> Definition raise ParseError {
     return OnlyTypeDef(spec, loc)
   }
   let decl_loc = self.current_loc()
-  let (name, decl_type) = self.parse_declarator()
+  let (name, decl_type, attrs) = self.parse_declarator()
   match self.current() {
     LBrace => {
       self.add_identifier(name)
@@ -2147,7 +2230,7 @@ pub fn Parser::parse_definition(self : Parser) -> Definition raise ParseError {
       self.pop_context()
       let end_loc = self.current_loc()
       FunDef(
-        { spec, name: { name, decl_type, attrs: [], loc: decl_loc } },
+        { spec, name: { name, decl_type, attrs, loc: decl_loc } },
         body,
         loc,
         end_loc,
@@ -2171,7 +2254,7 @@ pub fn Parser::parse_definition(self : Parser) -> Definition raise ParseError {
         FunDef(
           {
             spec,
-            name: { name, decl_type: new_decl_type, attrs: [], loc: decl_loc },
+            name: { name, decl_type: new_decl_type, attrs, loc: decl_loc },
           },
           body,
           loc,
@@ -2185,7 +2268,7 @@ pub fn Parser::parse_definition(self : Parser) -> Definition raise ParseError {
           NoInit
         }
         let init_names : Array[InitName] = [
-          { name: { name, decl_type, attrs: [], loc: decl_loc }, init },
+          { name: { name, decl_type, attrs, loc: decl_loc }, init },
         ]
         while self.check(Comma) {
           let _ = self.advance()

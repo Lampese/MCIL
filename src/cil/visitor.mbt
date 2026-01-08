@@ -212,7 +212,7 @@ fn[V : CilVisitor] visit_stmt_impl(visitor : V, s : Stmt) -> Stmt {
 fn[V : CilVisitor] visit_stmt_children(visitor : V, s : Stmt) -> Stmt {
   let new_kind = match s.skind {
     Instr(instrs) => {
-      let new_instrs : Array[Instr] = []
+      let new_instrs = []
       for i in instrs {
         let result = visit_instr_impl(visitor, i)
         for new_i in result {
@@ -281,7 +281,7 @@ fn[V : CilVisitor] visit_instr_impl(visitor : V, i : Instr) -> Array[Instr] {
     DoChildren => [visit_instr_children(visitor, i)]
     ChangeTo(new_is) => new_is
     ChangeDoChildrenPost(new_is, post) =>
-      post(new_is.map(fn(i2) { visit_instr_children(visitor, i2) }))
+      post(new_is.map(i2 => visit_instr_children(visitor, i2)))
   }
 }
 
@@ -294,17 +294,17 @@ fn[V : CilVisitor] visit_instr_children(visitor : V, i : Instr) -> Instr {
       Set(new_lv, new_exp, loc)
     }
     Call(lv_opt, func, args, loc) => {
-      let new_lv = lv_opt.map(fn(lv) { visit_lval_impl(visitor, lv) })
+      let new_lv = lv_opt.map(lv => visit_lval_impl(visitor, lv))
       let new_func = visit_exp_impl(visitor, func)
-      let new_args = args.map(fn(arg) { visit_exp_impl(visitor, arg) })
+      let new_args = args.map(arg => visit_exp_impl(visitor, arg))
       Call(new_lv, new_func, new_args, loc)
     }
     Asm(attrs, templates, outputs, inputs, clobbers, loc) => {
-      let new_outputs = outputs.map(fn(o) {
+      let new_outputs = outputs.map(o => {
         let (name, constraint, lv) = o
         (name, constraint, visit_lval_impl(visitor, lv))
       })
-      let new_inputs = inputs.map(fn(inp) {
+      let new_inputs = inputs.map(inp => {
         let (name, constraint, exp) = inp
         (name, constraint, visit_exp_impl(visitor, exp))
       })
@@ -409,21 +409,17 @@ fn[V : CilVisitor] visit_type_children(visitor : V, t : Typ) -> Typ {
     }
     TFun(ret, params, vararg, attrs) => {
       let new_ret = visit_type_impl(visitor, ret)
-      let new_params = params.map(fn(ps) {
-        ps.map(fn(p) {
-          let (name, pt, pattrs) = p
-          (name, visit_type_impl(visitor, pt), pattrs)
-        })
-      })
+      let new_params = params.map(ps => ps.map(fn(p) {
+        let (name, pt, pattrs) = p
+        (name, visit_type_impl(visitor, pt), pattrs)
+      }))
       TFun(new_ret, new_params, vararg, attrs)
     }
     TNamed(ti, attrs) => {
       let new_ttype = visit_type_impl(visitor, ti.ttype)
       TNamed({ ..ti, ttype: new_ttype }, attrs)
     }
-    TComp(_, _) => t
-    TEnum(_, _) => t
-    TBuiltinVaList(_) => t
+    TComp(_, _) | TEnum(_, _) | TBuiltinVaList(_) => t
   }
 }
 
@@ -493,7 +489,7 @@ fn[V : CilVisitor] visit_init_children(
     SingleInit(exp) => SingleInit(visit_exp_impl(visitor, exp))
     CompoundInit(t, inits) => {
       let new_t = visit_type_impl(visitor, t)
-      let new_inits = inits.map(fn(item) {
+      let new_inits = inits.map(item => {
         let (item_off, item_init) = item
         let new_off = visit_offset_impl(visitor, item_off)
         let new_init = visit_init_impl(visitor, vi, new_off, item_init)

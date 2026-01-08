@@ -186,7 +186,7 @@ pub fn simplify_stmt(fundec : @cil.FunDec, s : @cil.Stmt) -> Unit {
   match s.skind {
     @cil.Instr(instrs) => {
       let ctx = SimplifyContext::new(fundec, @cil.unknown_loc)
-      let new_instrs : Array[@cil.Instr] = []
+      let new_instrs = []
       for i in instrs {
         new_instrs.append(simplify_instr(ctx, i))
       }

@@ -34,8 +34,8 @@ pub fn Checker::new() -> Checker {
     errors: [],
     current_function: None,
     current_return_type: None,
-    defined_vars: Map::new(),
-    defined_labels: Map::new(),
+    defined_vars: {},
+    defined_labels: {},
     goto_targets: [],
   }
 }
@@ -199,11 +199,11 @@ pub fn check_exp(checker : Checker, e : Exp, loc : Location) -> Typ {
       check_type(checker, result_type, CTExp, loc)
       match op {
         Neg | BNot =>
-          if not(is_integral_type(inner_type)) && not(is_float_type(inner_type)) {
+          if !is_integral_type(inner_type) && not(is_float_type(inner_type)) {
             warn(checker, loc, "arithmetic operator on non-arithmetic type")
           }
         LNot =>
-          if not(is_scalar_type(inner_type)) {
+          if !is_scalar_type(inner_type) {
             warn(checker, loc, "logical not on non-scalar type")
           }
       }
@@ -240,7 +240,7 @@ pub fn check_exp(checker : Checker, e : Exp, loc : Location) -> Typ {
     }
     Question(cond, then_e, else_e, result_type) => {
       let cond_type = check_exp(checker, cond, loc)
-      if not(is_scalar_type(cond_type)) {
+      if !is_scalar_type(cond_type) {
         warn(checker, loc, "conditional expression requires scalar condition")
       }
       let _ = check_exp(checker, then_e, loc)

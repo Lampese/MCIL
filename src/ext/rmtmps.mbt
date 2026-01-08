@@ -374,9 +374,10 @@ pub fn print_removal_stats(
   locals_removed : Int,
   globals_removed : Int,
 ) -> String {
-  let mut result = "Removal Statistics for \{f.filename}:\n"
-  result = result + "  Unused locals removed: \{locals_removed}\n"
-  result = result + "  Unused globals removed: \{globals_removed}\n"
-  result = result + "  Remaining globals: \{f.globals.length()}\n"
-  result
+  let result = StringBuilder::new()
+  result.write_string("Removal Statistics for \{f.filename}:\n")
+  result.write_string("  Unused locals removed: \{locals_removed}\n")
+  result.write_string("  Unused globals removed: \{globals_removed}\n")
+  result.write_string("  Remaining globals: \{f.globals.length()}\n")
+  result.to_string()
 }

@@ -6,7 +6,7 @@ pub struct LivenessInfo {
 
 ///|
 pub fn LivenessInfo::new() -> LivenessInfo {
-  { stmt_live_in: Map::new(), stmt_live_out: Map::new() }
+  { stmt_live_in: {}, stmt_live_out: {} }
 }
 
 ///|
@@ -95,7 +95,7 @@ fn transfer_stmt(s : @cil.Stmt, live_out : VarSet) -> VarSet {
 ///|
 pub fn compute_liveness(f : @cil.FunDec) -> LivenessInfo {
   let info = LivenessInfo::new()
-  let all_stmts : Array[@cil.Stmt] = []
+  let all_stmts = []
   collect_all_stmts(f.sbody, all_stmts)
   if all_stmts.is_empty() {
     return info
@@ -137,7 +137,7 @@ pub fn get_instr_liveness(
   instrs : Array[@cil.Instr],
   live_out : VarSet,
 ) -> Array[VarSet] {
-  let result : Array[VarSet] = []
+  let result = []
   let mut live = live_out.copy()
   let mut i = instrs.length() - 1
   while i >= 0 {
@@ -147,7 +147,7 @@ pub fn get_instr_liveness(
     live = ud.uses.union(live.diff(ud.defs))
     i = i - 1
   }
-  let reversed : Array[VarSet] = []
+  let reversed = []
   let mut j = result.length() - 1
   while j >= 0 {
     reversed.push(result[j])
@@ -161,8 +161,8 @@ pub fn find_dead_assignments(
   f : @cil.FunDec,
 ) -> Array[(@cil.Instr, @cil.VarInfo)] {
   let info = compute_liveness(f)
-  let dead : Array[(@cil.Instr, @cil.VarInfo)] = []
-  let vid_map : Map[Int, @cil.VarInfo] = Map::new()
+  let dead = []
+  let vid_map = {}
   for local_ in f.slocals {
     vid_map.set(local_.vid, local_)
   }
@@ -207,29 +207,27 @@ pub fn print_liveness_info(
   f : @cil.FunDec,
   vid_map : Map[Int, @cil.VarInfo],
 ) -> String {
-  let mut result = "Liveness Analysis for \{f.svar.vname}:\n"
-  let all_stmts : Array[@cil.Stmt] = []
+  let result = StringBuilder::new()
+  result.write_string("Liveness Analysis for \{f.svar.vname}:\n")
+  let all_stmts = []
   collect_all_stmts(f.sbody, all_stmts)
   for s in all_stmts {
     let live_in = get_live_in(info, s)
     let live_out = get_live_out(info, s)
-    let in_names : Array[String] = []
-    live_in.iter(fn(id) {
-      match vid_map.get(id) {
-        Some(vi) => in_names.push(vi.vname)
-        None => in_names.push("?\{id}")
-      }
+    let in_names = []
+    live_in.iter(id => match vid_map.get(id) {
+      Some(vi) => in_names.push(vi.vname)
+      None => in_names.push("?\{id}")
     })
-    let out_names : Array[String] = []
-    live_out.iter(fn(id) {
-      match vid_map.get(id) {
-        Some(vi) => out_names.push(vi.vname)
-        None => out_names.push("?\{id}")
-      }
+    let out_names = []
+    live_out.iter(id => match vid_map.get(id) {
+      Some(vi) => out_names.push(vi.vname)
+      None => out_names.push("?\{id}")
     })
     let sep = ", "
-    result = result +
-      "  stmt \{s.sid}: in={\{in_names.join(sep)}}, out={\{out_names.join(sep)}}\n"
+    result.write_string(
+      "  stmt \{s.sid}: in={\{in_names.join(sep)}}, out={\{out_names.join(sep)}}\n",
+    )
   }
-  result
+  result.to_string()
 }

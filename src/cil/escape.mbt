@@ -89,77 +89,76 @@ fn format_unicode4(n : Int) -> String {
 
 ///|
 fn format_unicode8(n : Int64) -> String {
-  let mut result = "\\U"
+  let result = StringBuilder::new()
+  result.write_string("\\U")
   let mut value = n
-  let digits : Array[String] = []
+  let digits = []
   let mut count = 0
   while count < 8 {
     digits.push(format_hex_digit((value % 16L).to_int()))
     value = value / 16L
     count = count + 1
   }
-  let mut i = 7
-  while i >= 0 {
-    result = result + digits[i]
-    i = i - 1
+  for i = 7; i >= 0; i = i - 1 {
+    result.write_string(digits[i])
   }
-  result
+  result.to_string()
 }
 
 ///|
 pub fn escape_wstring(str : Array[Int64]) -> String {
-  let mut result = ""
+  let result = StringBuilder::new()
   for charcode in str {
-    result = result + escape_wchar(charcode)
+    result.write_string(escape_wchar(charcode))
   }
-  result
+  result.to_string()
 }
 
 ///|
 pub fn unescape_string(s : String) -> String {
-  let mut result = ""
+  let result = StringBuilder::new()
   let mut i = 0
   while i < s.length() {
     if s[i] == '\\' && i + 1 < s.length() {
       match s[i + 1] {
         'a' => {
-          result = result + "\u{07}"
+          result.write_string("\u{07}")
           i = i + 2
         }
         'b' => {
-          result = result + "\u{08}"
+          result.write_string("\u{08}")
           i = i + 2
         }
         't' => {
-          result = result + "\t"
+          result.write_string("\t")
           i = i + 2
         }
         'n' => {
-          result = result + "\n"
+          result.write_string("\n")
           i = i + 2
         }
         'v' => {
-          result = result + "\u{0B}"
+          result.write_string("\u{0B}")
           i = i + 2
         }
         'f' => {
-          result = result + "\u{0C}"
+          result.write_string("\u{0C}")
           i = i + 2
         }
         'r' => {
-          result = result + "\r"
+          result.write_string("\r")
           i = i + 2
         }
         '"' => {
-          result = result + "\""
+          result.write_string("\"")
           i = i + 2
         }
         '\'' => {
-          result = result + "'"
+          result.write_string("'")
           i = i + 2
         }
         '\\' => {
-          result = result + "\\"
+          result.write_string("\\")
           i = i + 2
         }
         '0' => {
@@ -169,7 +168,7 @@ pub fn unescape_string(s : String) -> String {
             value = value * 8 + (s[j].to_int() - '0'.to_int())
             j = j + 1
           }
-          result = result + Int::to_char(value).unwrap().to_string()
+          result.write_string(Int::to_char(value).unwrap().to_string())
           i = j
         }
         'x' => {
@@ -191,18 +190,18 @@ pub fn unescape_string(s : String) -> String {
             value = value * 16 + digit
             j = j + 1
           }
-          result = result + Int::to_char(value).unwrap().to_string()
+          result.write_string(Int::to_char(value).unwrap().to_string())
           i = j
         }
         _ => {
-          result = result + s[i + 1].to_string()
+          result.write_string(s[i + 1].to_string())
           i = i + 2
         }
       }
     } else {
-      result = result + s[i].to_string()
+      result.write_string(s[i].to_string())
       i = i + 1
     }
   }
-  result
+  result.to_string()
 }

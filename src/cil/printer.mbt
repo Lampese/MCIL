@@ -153,6 +153,116 @@ fn escape_string(s : String) -> String {
 }
 
 ///|
+fn print_cv(attrs : Array[Attribute]) -> String {
+  let mut has_const = false
+  let mut has_volatile = false
+  let mut has_restrict = false
+  for a in attrs {
+    if a.params.is_empty() {
+      if a.name == "const" {
+        has_const = true
+      } else if a.name == "volatile" {
+        has_volatile = true
+      } else if a.name == "restrict" {
+        has_restrict = true
+      }
+    }
+  }
+  let parts : Array[String] = []
+  if has_const {
+    parts.push("const")
+  }
+  if has_volatile {
+    parts.push("volatile")
+  }
+  if has_restrict {
+    parts.push("restrict")
+  }
+  if parts.is_empty() {
+    ""
+  } else {
+    parts.join(" ") + " "
+  }
+}
+
+///|
+fn print_noncv_simple_attrs(attrs : Array[Attribute]) -> Array[String] {
+  let parts : Array[String] = []
+  for a in attrs {
+    if a.params.is_empty() &&
+      a.name != "const" &&
+      a.name != "volatile" &&
+      a.name != "restrict" {
+      parts.push(a.name)
+    }
+  }
+  parts
+}
+
+///|
+fn print_attrparam(p : AttrParam) -> String {
+  match p {
+    AInt(n) => n.to_string()
+    AStr(s) => "\"\{escape_string(s)}\""
+    ACons(name, args) =>
+      if args.is_empty() {
+        name
+      } else {
+        let args_str = args.map(print_attrparam).join(", ")
+        "\{name}(\{args_str})"
+      }
+    ASizeOf(t) => "sizeof(\{print_type(t)})"
+    ASizeOfE(e) => "sizeof(\{print_attrparam(e)})"
+    AAlignOf(t) => "__alignof__(\{print_type(t)})"
+    AAlignOfE(e) => "__alignof__(\{print_attrparam(e)})"
+    AUnOp(op, a) => "\{print_unop(op)}(\{print_attrparam(a)})"
+    ABinOp(op, a, b) =>
+      "(\{print_attrparam(a)} \{print_binop(op)} \{print_attrparam(b)})"
+    ADot(a, f) => "\{print_attrparam(a)}.\{f}"
+    AStar(a) => "*\{print_attrparam(a)}"
+    AAddrOf(a) => "&\{print_attrparam(a)}"
+    AIndex(a, i) => "\{print_attrparam(a)}[\{print_attrparam(i)}]"
+    AQuestion(a, b, c) =>
+      "(\{print_attrparam(a)} ? \{print_attrparam(b)} : \{print_attrparam(c)})"
+  }
+}
+
+///|
+fn print_attrs_after_name(attrs : Array[Attribute]) -> String {
+  let parts : Array[String] = []
+  for a in attrs {
+    if a.name == "const" || a.name == "volatile" || a.name == "restrict" {
+      continue
+    }
+    if a.params.is_empty() {
+      parts.push(a.name)
+    } else {
+      let ps = a.params.map(print_attrparam).join(", ")
+      parts.push("\{a.name}(\{ps})")
+    }
+  }
+  if parts.is_empty() {
+    ""
+  } else {
+    " " + parts.join(" ")
+  }
+}
+
+///|
+fn print_block_attrs(attrs : Array[Attribute]) -> String {
+  let parts : Array[String] = []
+  for a in attrs {
+    if a.params.is_empty() {
+      parts.push(a.name)
+    } else {
+      let ps = a.params.map(print_attrparam).join(", ")
+      parts.push("\{a.name}(\{ps})")
+    }
+  }
+  parts.join(" ")
+}
+
+///|
 pub fn print_type(t : Typ) -> String {
   print_type_with_name(t, "")
 }
@@ -183,8 +293,14 @@ fn print_field_type(t : Typ, name : String) -> String {
 
       let elem_type = collect_dims(base)
       let dims_str = dims.rev().join("")
-      "\{print_type_simple(elem_type)} \{name}\{dims_str}"
+      match elem_type {
+        TComp(ci, _) if ci.cname == "" && ci.cfields.length() > 0 =>
+          print_type_with_name(elem_type, "\{name}\{dims_str}")
+        _ => "\{print_type_simple(elem_type)} \{name}\{dims_str}"
+      }
     }
+    TComp(ci, _) if ci.cname == "" && ci.cfields.length() > 0 =>
+      print_type_with_name(t, name)
     _ => "\{print_type_simple(t)} \{name}"
   }
 }
@@ -213,7 +329,19 @@ fn print_type_simple(t : Typ) -> String {
         "\{kind} \{ci.cname}"
       }
     }
-    TEnum(ei, _) => "enum \{ei.ename}"
+    TEnum(ei, _) =>
+      if ei.ename != "" {
+        "enum \{ei.ename}"
+      } else if ei.eitems.length() > 0 {
+        let items = ei.eitems.map(fn(item) {
+          let (n, e, _) = item
+          "\{n} = \{print_exp(e)}"
+        })
+        let items_str = items.join(", ")
+        "enum {\{items_str}}"
+      } else {
+        "enum"
+      }
     TBuiltinVaList(_) => "__builtin_va_list"
   }
 }
@@ -221,29 +349,48 @@ fn print_type_simple(t : Typ) -> String {
 ///|
 pub fn print_type_with_name(t : Typ, name : String) -> String {
   match t {
-    TVoid(_) => if name == "" { "void" } else { "void \{name}" }
-    TInt(k, _) => {
+    TVoid(a) => {
+      let cv = print_cv(a)
+      if name == "" {
+        "\{cv}void"
+      } else {
+        "\{cv}void \{name}"
+      }
+    }
+    TInt(k, a) => {
       let base = print_ikind(k)
+      let cv = print_cv(a)
       if name == "" {
-        base
+        "\{cv}\{base}"
       } else {
-        "\{base} \{name}"
+        "\{cv}\{base} \{name}"
       }
     }
-    TFloat(k, _) => {
+    TFloat(k, a) => {
       let base = print_fkind(k)
+      let cv = print_cv(a)
       if name == "" {
-        base
+        "\{cv}\{base}"
       } else {
-        "\{base} \{name}"
+        "\{cv}\{base} \{name}"
       }
     }
-    TPtr(bt, _) => {
+    TPtr(bt, a) => {
       let needs_paren = match bt {
         TArray(_, _, _) | TFun(_, _, _, _) => true
         _ => false
       }
-      let name_with_star = if name == "" { "*" } else { "*\{name}" }
+      let cv = print_cv(a).trim().to_string()
+      let extra = print_noncv_simple_attrs(a).join(" ")
+      let mods = "\{cv} \{extra}".trim().to_string()
+      let star = if mods == "" { "*" } else { "* \{mods}" }
+      let name_with_star = if name == "" {
+        star
+      } else if mods == "" {
+        "\{star}\{name}"
+      } else {
+        "\{star} \{name}"
+      }
       let name_new = if needs_paren {
         "(\{name_with_star})"
       } else {
@@ -282,34 +429,86 @@ pub fn print_type_with_name(t : Typ, name : String) -> String {
       }
       print_type_with_name(ret, name_new)
     }
-    TNamed(ti, _) => if name == "" { ti.tname } else { "\{ti.tname} \{name}" }
-    TComp(ci, _) => {
+    TNamed(ti, a) => {
+      let cv = print_cv(a)
+      if name == "" {
+        "\{cv}\{ti.tname}"
+      } else {
+        "\{cv}\{ti.tname} \{name}"
+      }
+    }
+    TComp(ci, a) => {
       let kind = if ci.cstruct { "struct" } else { "union" }
+      let cv = print_cv(a)
+      let extra = print_noncv_simple_attrs(a)
       if ci.cname == "" && ci.cfields.length() > 0 {
         let fields = ci.cfields.map(fn(fi) {
-          let type_name_str = print_field_type(fi.ftype, fi.fname)
+          let type_name_str = print_field_type(
+            fi.ftype,
+            fi.fname + print_attrs_after_name(fi.fattr),
+          )
           match fi.fbitfield {
             Some(width) => "  \{type_name_str} : \{width};"
             None => "  \{type_name_str};"
           }
         })
         let fields_str = fields.join("\n")
-        if name == "" {
-          "\{kind} {\n\{fields_str}\n}"
+        let base = "\{cv}\{kind} {\n\{fields_str}\n}"
+        let tail_parts : Array[String] = []
+        if not(extra.is_empty()) {
+          tail_parts.push(extra.join(" "))
+        }
+        if name != "" {
+          tail_parts.push(name)
+        }
+        if tail_parts.is_empty() {
+          base
         } else {
-          "\{kind} {\n\{fields_str}\n} \{name}"
+          let tail = tail_parts.join(" ")
+          "\{base} \{tail}"
         }
       } else if name == "" {
-        "\{kind} \{ci.cname}"
+        let base = "\{cv}\{kind} \{ci.cname}"
+        if extra.is_empty() {
+          base
+        } else {
+          let tail = extra.join(" ")
+          "\{base} \{tail}"
+        }
       } else {
-        "\{kind} \{ci.cname} \{name}"
+        let base = "\{cv}\{kind} \{ci.cname}"
+        let tail_parts : Array[String] = []
+        if not(extra.is_empty()) {
+          tail_parts.push(extra.join(" "))
+        }
+        tail_parts.push(name)
+        let tail = tail_parts.join(" ")
+        "\{base} \{tail}"
       }
     }
-    TEnum(ei, _) =>
-      if name == "" {
-        "enum \{ei.ename}"
+    TEnum(ei, a) =>
+      if ei.ename != "" {
+        if name == "" {
+          "\{print_cv(a)}enum \{ei.ename}"
+        } else {
+          "\{print_cv(a)}enum \{ei.ename} \{name}"
+        }
+      } else if ei.eitems.length() > 0 {
+        let items = ei.eitems.map(fn(item) {
+          let (n, e, _) = item
+          "  \{n} = \{print_exp(e)}"
+        })
+        let items_str = items.join(",\n")
+        let enum_str = "\{print_cv(a)}enum {\n\{items_str}\n}"
+        if name == "" {
+          enum_str
+        } else {
+          "\{enum_str} \{name}"
+        }
+      } else if name == "" {
+        "\{print_cv(a)}enum"
       } else {
-        "enum \{ei.ename} \{name}"
+        "\{print_cv(a)}enum \{name}"
       }
     TBuiltinVaList(_) =>
       if name == "" {
@@ -458,21 +657,35 @@ pub fn print_stmt(s : Stmt, level : Int) -> String {
 ///|
 pub fn print_block(block : Block, level : Int) -> String {
   let ind = indent(level)
+  let ind2 = indent(level + 1)
+  let attrs_line = print_block_attrs(block.battrs)
+  let attrs_section = if attrs_line == "" {
+    ""
+  } else {
+    "\{ind2}\{attrs_line}\n"
+  }
   let stmts_str = block.bstmts
     .map(fn(s) { print_stmt(s, level + 1) })
     .filter(fn(s) { not(s.is_empty()) })
     .join("\n")
-  "\{ind}{\n\{stmts_str}\n\{ind}}"
+  "\{ind}{\n\{attrs_section}\{stmts_str}\n\{ind}}"
 }
 
 ///|
 fn print_block_inline(block : Block, level : Int) -> String {
   let ind = indent(level)
+  let ind2 = indent(level + 1)
+  let attrs_line = print_block_attrs(block.battrs)
+  let attrs_section = if attrs_line == "" {
+    ""
+  } else {
+    "\{ind2}\{attrs_line}\n"
+  }
   let stmts_str = block.bstmts
     .map(fn(s) { print_stmt(s, level + 1) })
     .filter(fn(s) { not(s.is_empty()) })
     .join("\n")
-  "{\n\{stmts_str}\n\{ind}}"
+  "{\n\{attrs_section}\{stmts_str}\n\{ind}}"
 }
 
 ///|
@@ -483,10 +696,15 @@ pub fn print_fundec(fd : FunDec) -> String {
     _ => "int"
   }
   let params_str = fd.sformals
-    .map(fn(vi) { print_type_with_name(vi.vtype, vi.vname) })
+    .map(fn(vi) {
+      print_type_with_name(
+        vi.vtype,
+        vi.vname + print_attrs_after_name(vi.vattr),
+      )
+    })
     .join(", ")
   let locals_lines = fd.slocals.map(fn(vi) {
-    "  \{print_type_with_name(vi.vtype, vi.vname)};"
+    "  \{print_type_with_name(vi.vtype, vi.vname + print_attrs_after_name(vi.vattr))};"
   })
   let locals_str = locals_lines.join("\n")
   let body_stmts = fd.sbody.bstmts
@@ -506,8 +724,10 @@ fn print_compinfo(ci : CompInfo) -> String {
   let kind = if ci.cstruct { "struct" } else { "union" }
   let fields = ci.cfields.map(fn(fi) {
     match fi.fbitfield {
-      Some(width) => "  \{print_type_with_name(fi.ftype, fi.fname)} : \{width};"
-      None => "  \{print_type_with_name(fi.ftype, fi.fname)};"
+      Some(width) =>
+        "  \{print_type_with_name(fi.ftype, fi.fname + print_attrs_after_name(fi.fattr))} : \{width};"
+      None =>
+        "  \{print_type_with_name(fi.ftype, fi.fname + print_attrs_after_name(fi.fattr))};"
     }
   })
   let newline = "\n"
@@ -545,11 +765,19 @@ pub fn print_init(init : Init) -> String {
 
 ///|
 fn print_init_offset(off : Offset) -> String {
-  match off {
-    NoOffset => ""
-    Field(fi, NoOffset) => ".\{fi.fname} = "
-    Index(e, NoOffset) => "[\{print_exp(e)}] = "
-    _ => ""
+  fn print_init_offset_path(off : Offset) -> String {
+    match off {
+      NoOffset => ""
+      Field(fi, rest) => ".\{fi.fname}\{print_init_offset_path(rest)}"
+      Index(e, rest) => "[\{print_exp(e)}]\{print_init_offset_path(rest)}"
+    }
+  }
+
+  let path = print_init_offset_path(off)
+  if path == "" {
+    ""
+  } else {
+    "\{path} = "
   }
 }
 
@@ -566,7 +794,7 @@ pub fn print_global(g : Global) -> String {
     GEnumTagDecl(ei, _) => "enum \{ei.ename};"
     GVarDecl(vi, _) => {
       let storage = print_storage(vi.vstorage)
-      "\{storage}\{print_type_with_name(vi.vtype, vi.vname)};"
+      "\{storage}\{print_type_with_name(vi.vtype, vi.vname + print_attrs_after_name(vi.vattr))};"
     }
     GVar(vi, ii, _) => {
       let storage = print_storage(vi.vstorage)
@@ -574,7 +802,7 @@ pub fn print_global(g : Global) -> String {
         Some(init) => " = \{print_init(init)}"
         None => ""
       }
-      "\{storage}\{print_type_with_name(vi.vtype, vi.vname)}\{init_str};"
+      "\{storage}\{print_type_with_name(vi.vtype, vi.vname + print_attrs_after_name(vi.vattr))}\{init_str};"
     }
     GFun(fd, _) => print_fundec(fd)
     GAsm(s, _) => {

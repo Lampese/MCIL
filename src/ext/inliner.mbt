@@ -172,9 +172,9 @@ fn copy_stmt(
       Default(loc) => @cil.Label::Default(loc)
     }
   })
-  let new_skind : @cil.StmtKind = match s.skind {
+  let new_skind = match s.skind {
     Instr(instrs) => {
-      let copied : Array[@cil.Instr] = []
+      let copied = []
       for i in instrs {
         copied.push(copy_instr(ctx, i))
       }
@@ -212,7 +212,7 @@ fn copy_stmt(
         loc,
       )
     Switch(cond, body, cases, loc) => {
-      let copied_cases : Array[@cil.Stmt] = []
+      let copied_cases = []
       for c in cases {
         copied_cases.push(copy_stmt(ctx, c))
       }
@@ -233,7 +233,7 @@ fn copy_stmt(
         loc,
       )
     TryExcept(try_block, (filter_instrs, filter_exp), except_block, loc) => {
-      let copied_filter : Array[@cil.Instr] = []
+      let copied_filter = []
       for i in filter_instrs {
         copied_filter.push(copy_instr(ctx, i))
       }
@@ -254,7 +254,7 @@ fn copy_block(
   ctx : InlineContext,
   b : @cil.Block,
 ) -> @cil.Block raise InlineRecursion {
-  let copied_stmts : Array[@cil.Stmt] = []
+  let copied_stmts = []
   for s in b.bstmts {
     copied_stmts.push(copy_stmt(ctx, s))
   }
@@ -302,7 +302,6 @@ pub fn inline_call(
   args : Array[@cil.Exp],
   loc : @cil.Location,
 ) -> Array[@cil.Stmt]? {
-  // Prevent inlining a function into itself
   if callee.svar.vid == host.svar.vid {
     return None
   }
@@ -359,7 +358,7 @@ pub fn inline_call(
     host.slocals.push(temp)
     ctx.var_map.set(local_var.vid, temp)
   }
-  fn collect_labels(b : @cil.Block, ctx : InlineContext) -> Unit {
+  fn collect_labels(b : @cil.Block, ctx : InlineContext) {
     for s in b.bstmts {
       for label in s.labels {
         match label {
@@ -389,7 +388,6 @@ pub fn inline_call(
   }
 
   collect_labels(callee.sbody, ctx)
-  // Try to copy the body; if recursion is detected, return None
   let copied_body = copy_block(ctx, callee.sbody) catch {
     InlineRecursion(_) => return None
   }
@@ -420,23 +418,19 @@ pub fn inline_function_calls(
   callee : @cil.FunDec,
   options : InlineOptions,
 ) -> Int {
-  if not(can_inline(callee, options)) {
+  if !can_inline(callee, options) {
     return 0
   }
   let mut inlined_count = 0
-  fn process_block(
-    b : @cil.Block,
-    host : @cil.FunDec,
-    callee : @cil.FunDec,
-  ) -> Int {
+  fn process_block(b : @cil.Block, host : @cil.FunDec, callee : @cil.FunDec) {
     let mut count = 0
-    let new_stmts : Array[@cil.Stmt] = []
+    let new_stmts = []
     for s in b.bstmts {
       match s.skind {
         Instr(instrs) => {
-          let new_instrs : Array[@cil.Instr] = []
+          let new_instrs = []
           let mut need_expand = false
-          let expand_stmts : Array[@cil.Stmt] = []
+          let expand_stmts = []
           for instr in instrs {
             match instr {
               Call(lv_opt, fn_exp, args, loc) =>

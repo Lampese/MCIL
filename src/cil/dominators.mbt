@@ -61,7 +61,7 @@ pub fn compute_dominators(f : FunDec) -> DomInfo {
   let mut changed = true
   while changed {
     changed = false
-    for i = 1; i < all_stmts.length(); i = i + 1 {
+    for i in 1..<all_stmts.length() {
       let s = all_stmts[i]
       let preds = s.preds
       if preds.is_empty() {
@@ -76,13 +76,13 @@ pub fn compute_dominators(f : FunDec) -> DomInfo {
           }
         None => ()
       }
-      for j = 1; j < preds.length(); j = j + 1 {
+      for j in 1..<preds.length() {
         let pred = preds[j]
         match info.dominators.get(pred.sid) {
           Some(pred_doms) => {
-            let to_remove : Array[Int] = []
+            let to_remove = []
             for id in new_doms {
-              if not(pred_doms.contains(id)) {
+              if !pred_doms.contains(id) {
                 to_remove.push(id)
               }
             }
@@ -100,7 +100,7 @@ pub fn compute_dominators(f : FunDec) -> DomInfo {
         info.dominators.set(s.sid, new_doms)
       } else {
         for id in new_doms {
-          if not(old_doms.contains(id)) {
+          if !old_doms.contains(id) {
             changed = true
             break
           }
@@ -180,8 +180,8 @@ fn compute_idom(info : DomInfo, stmts : Array[Stmt]) -> Unit {
 
 ///|
 pub fn build_dom_tree(info : DomInfo, f : FunDec) -> Map[Int, Array[Int]] {
-  let tree : Map[Int, Array[Int]] = Map::new()
-  let all_stmts : Array[Stmt] = []
+  let tree = {}
+  let all_stmts = []
   collect_stmts(f.sbody, all_stmts)
   for s in all_stmts {
     tree.set(s.sid, [])
@@ -204,8 +204,8 @@ pub fn compute_dom_frontier(
   info : DomInfo,
   f : FunDec,
 ) -> Map[Int, @hashset.HashSet[Int]] {
-  let frontier : Map[Int, @hashset.HashSet[Int]] = Map::new()
-  let all_stmts : Array[Stmt] = []
+  let frontier = {}
+  let all_stmts = []
   collect_stmts(f.sbody, all_stmts)
   for s in all_stmts {
     frontier.set(s.sid, @hashset.new())
@@ -242,22 +242,23 @@ pub fn compute_dom_frontier(
 
 ///|
 pub fn print_dom_info(info : DomInfo, f : FunDec) -> String {
-  let mut result = "Dominator Information for \{f.svar.vname}:\n"
-  let all_stmts : Array[Stmt] = []
+  let result = StringBuilder::new()
+  result.write_string("Dominator Information for \{f.svar.vname}:\n")
+  let all_stmts = []
   collect_stmts(f.sbody, all_stmts)
   for s in all_stmts {
     let doms = get_dominators(info, s)
-    let dom_ids : Array[String] = []
+    let dom_ids = []
     for id in doms {
       dom_ids.push(id.to_string())
     }
     let sep = ", "
-    result = result + "  stmt \{s.sid}: dominators = {\{dom_ids.join(sep)}}"
+    result.write_string("  stmt \{s.sid}: dominators = {\{dom_ids.join(sep)}}")
     match get_idom(info, s) {
-      Some(idom_id) => result = result + ", idom = \{idom_id}"
-      None => result = result + ", idom = none"
+      Some(idom_id) => result.write_string(", idom = \{idom_id}")
+      None => result.write_string(", idom = none")
     }
-    result = result + "\n"
+    result.write_string("\n")
   }
-  result
+  result.to_string()
 }
