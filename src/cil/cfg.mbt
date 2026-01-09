@@ -23,9 +23,7 @@ fn find_case_labeled_stmts(block : Block) -> Array[Stmt] {
   let result : Array[Stmt] = []
   fn is_case_label(label : Label) -> Bool {
     match label {
-      Case(_, _) => true
-      CaseRange(_, _, _) => true
-      Default(_) => true
+      Case(_, _) | CaseRange(_, _, _) | Default(_) => true
       Label(_, _, _) => false
     }
   }

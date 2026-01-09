@@ -39,7 +39,7 @@ pub fn[T] forwards_dataflow(
   config : ForwardsConfig[T],
   sources : Array[Stmt],
 ) -> Unit {
-  let worklist : Array[Stmt] = []
+  let worklist = []
   sources.each(fn(s) { worklist.push(s) })
   sources.each(fn(s) {
     guard (config.has_data)(s.sid) else {
@@ -47,7 +47,7 @@ pub fn[T] forwards_dataflow(
     }
   })
   fn in_worklist(s : Stmt) -> Bool {
-    worklist.iter().any(fn(s2) { s.sid == s2.sid })
+    worklist.iter().any(s2 => s.sid == s2.sid)
   }
 
   fn reached_statement(s : Stmt, d : T) -> Unit {
@@ -221,9 +221,10 @@ pub fn[T] backwards_dataflow(
           s.succs
           .iter()
           .drop(1)
-          .fold(init=first, fn(acc, succ) {
-            (config.combine_successors)(acc, get_stmt_start_data(succ))
-          })
+          .fold(init=first, (acc, succ) => (config.combine_successors)(
+            acc,
+            get_stmt_start_data(succ),
+          ))
         }
         let res2 = match s.skind {
           Instr(il) => {

@@ -174,19 +174,8 @@ pub fn unescape_string(s : String) -> String {
         'x' => {
           let mut value = 0
           let mut j = i + 2
-          while j < s.length() &&
-                (
-                  (s[j] >= '0' && s[j] <= '9') ||
-                  (s[j] >= 'a' && s[j] <= 'f') ||
-                  (s[j] >= 'A' && s[j] <= 'F')
-                ) {
-            let digit = if s[j] >= '0' && s[j] <= '9' {
-              s[j].to_int() - '0'.to_int()
-            } else if s[j] >= 'a' && s[j] <= 'f' {
-              s[j].to_int() - 'a'.to_int() + 10
-            } else {
-              s[j].to_int() - 'A'.to_int() + 10
-            }
+          while j < s.length() && s[j] is (0..=9 | 'a'..='f' | 'A'..='F') {
+            let digit = s[j].to_int() - '0'.to_int() + 10
             value = value * 16 + digit
             j = j + 1
           }

@@ -1,6 +1,11 @@
 {
   "name": "Lampese/MCIL",
-  "version": "0.1.0",
+  "version": "0.1.1",
+  "description": "C Intermediate Language Implemented with MoonBit",
+  "preferred-target": "native",
+  "license": "MIT",
+  "readme": "README.md",
+  "repository": "https://github.com/Lampese/MCIL",
   "deps": {
     "moonbitlang/async": "0.15.0"
   }
