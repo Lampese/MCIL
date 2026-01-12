@@ -81,7 +81,9 @@ fn parse_double(s : String) -> Double {
 }
 
 ///|
-pub suberror ConversionError String
+pub suberror ConversionError {
+  ConversionError(String)
+}
 
 ///|
 pub enum EnvEntry {

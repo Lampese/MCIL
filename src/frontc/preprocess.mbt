@@ -38,7 +38,9 @@ pub fn PreprocessConfig::build_args(
 }
 
 ///|
-pub suberror PreprocessError String
+pub suberror PreprocessError {
+  PreprocessError(String)
+}
 
 ///|
 pub async fn preprocess(

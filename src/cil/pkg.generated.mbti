@@ -251,7 +251,7 @@ pub fn zero() -> Exp
 // Errors
 
 // Types and methods
-pub enum Action[T] {
+pub(all) enum Action[T] {
   Default
   Done(T)
   Post((T) -> T)
@@ -279,7 +279,7 @@ pub(all) struct Attribute {
   params : Array[AttrParam]
 }
 
-pub struct BackwardsConfig[T] {
+pub(all) struct BackwardsConfig[T] {
   name : String
   get_data : (Int) -> T?
   set_data : (Int, T) -> Unit
@@ -428,7 +428,7 @@ pub(all) struct File {
   globinitcalled : Bool
 }
 
-pub struct ForwardsConfig[T] {
+pub(all) struct ForwardsConfig[T] {
   name : String
   get_data : (Int) -> T?
   set_data : (Int, T) -> Unit
@@ -466,7 +466,7 @@ pub(all) enum Global {
   GText(String)
 }
 
-pub enum GuardAction[T] {
+pub(all) enum GuardAction[T] {
   GDefault
   GUse(T)
   GUnreachable
@@ -558,7 +558,7 @@ pub(all) struct Stmt {
   preds : Array[Stmt]
 }
 
-pub enum StmtAction[T] {
+pub(all) enum StmtAction[T] {
   SDefault
   SDone
   SUse(T)

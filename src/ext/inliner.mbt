@@ -1,5 +1,7 @@
 ///|
-priv suberror InlineRecursion String
+priv suberror InlineRecursion {
+  InlineRecursion(String)
+}
 
 ///|
 pub struct InlineOptions {

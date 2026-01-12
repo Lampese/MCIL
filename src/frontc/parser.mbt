@@ -6,7 +6,9 @@ pub struct Parser {
 }
 
 ///|
-pub suberror ParseError String
+pub suberror ParseError {
+  ParseError(String)
+}
 
 ///|
 pub fn Parser::new(tokens : Array[(Token, CabsLoc)]) -> Parser {

@@ -2,9 +2,6 @@
 package "Lampese/MCIL"
 
 // Values
-pub fn fib(Int) -> Int64
-
-pub fn sum(data~ : Array[Int], start? : Int, length? : Int) -> Int
 
 // Errors
 

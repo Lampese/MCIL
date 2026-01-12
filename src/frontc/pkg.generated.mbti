@@ -20,9 +20,41 @@ pub fn conv_loc(CabsLoc) -> @cil.Location
 
 pub fn conv_stmt(ConvEnv, CabsStatement) -> @cil.Stmt raise ConversionError
 
+pub fn diagnose_checkret(@cil.File) -> DiagnosticResult
+
+pub fn diagnose_cilreturn(@cil.File) -> DiagnosticResult
+
+pub fn diagnose_named(String, @cil.File) -> DiagnosticResult
+
+pub fn diagnose_seqalign_from_processed(String, String, @cil.File) -> DiagnosticResult
+
+pub fn diagnose_testbad_from_src(String, String) -> DiagnosticResult
+
+pub fn diagnose_union7_addr_of_and_host(String, @cil.File) -> DiagnosticResult
+
+pub fn diagnose_union7_exit_error(String, @cil.File) -> DiagnosticResult
+
+pub fn diagnose_union7_selectedwhen(String, @cil.File) -> DiagnosticResult
+
+pub fn diagnose_union7_wrongfield(String, @cil.File) -> DiagnosticResult
+
+pub fn diagnose_union8(@cil.File) -> DiagnosticResult
+
+pub fn err_diag(String) -> DiagnosticResult
+
+pub fn extract_testbad_expected_msg(String, Int) -> String
+
+pub fn has_exit_code_in_main(@cil.File, Int) -> Bool
+
+pub fn ok_diag() -> DiagnosticResult
+
 pub fn parse_and_convert(String, String) -> @cil.File raise ConversionError
 
 pub fn parse_c_source(String, String) -> CabsFile raise ParseError
+
+pub fn parse_int_opt(String) -> Int?
+
+pub fn parse_test_def_like_runall(String, Map[String, RunallTestSpec], Ref[Int]) -> String raise ConversionError
 
 pub async fn preprocess(PreprocessConfig, String) -> String raise PreprocessError
 
@@ -30,14 +62,32 @@ pub async fn preprocess_and_parse(PreprocessConfig, String) -> @cil.File raise P
 
 pub async fn preprocess_file(String) -> String raise PreprocessError
 
+pub fn process_runall_for_test(String, String) -> String
+
+pub fn process_testbad_for_error(String, Int) -> String
+
+pub fn scan_runall_tests(String) -> Array[RunallTestSpec] raise ConversionError
+
+pub fn scan_testbad_numerrors(String) -> Int?
+
 pub fn tokenize(String, String) -> Array[(Token, CabsLoc)]
 
+pub fn union8_endof_diag_from_cil(String, @cil.File) -> DiagnosticResult
+
+pub fn union8_kind_diag_from_cil(String, @cil.File) -> DiagnosticResult
+
 // Errors
-pub suberror ConversionError String
+pub suberror ConversionError {
+  ConversionError(String)
+}
 
-pub suberror ParseError String
+pub suberror ParseError {
+  ParseError(String)
+}
 
-pub suberror PreprocessError String
+pub suberror PreprocessError {
+  PreprocessError(String)
+}
 
 // Types and methods
 pub struct AsmDetails {
@@ -174,12 +224,10 @@ pub enum CabsStatement {
 pub impl Show for CabsStatement
 
 pub enum CabsStorage {
-  NoStorage
   Auto
   Static
   Extern
   Register
-  Typedef
 }
 pub impl Show for CabsStorage
 
@@ -235,6 +283,11 @@ pub enum Definition {
 }
 pub impl Show for Definition
 
+pub struct DiagnosticResult {
+  has_error : Bool
+  output : String
+}
+
 pub struct EnumItem {
   name : String
   value : CabsExpression
@@ -246,10 +299,7 @@ pub enum EnvEntry {
   EnvVar(@cil.VarInfo)
   EnvTypeDef(@cil.TypeInfo)
   EnvEnum(@cil.Exp, @cil.Typ)
-  EnvComp(@cil.CompInfo)
 }
-
-type ExpAction
 
 pub struct FieldGroup {
   spec : Specifier
@@ -353,6 +403,13 @@ pub struct PreprocessConfig {
 pub fn PreprocessConfig::build_args(Self, String) -> Array[String]
 pub fn PreprocessConfig::default() -> Self
 
+pub struct RunallTestSpec {
+  name : String
+  expect_success : Bool
+  msg : String
+  msg_is_regex : Bool
+}
+
 pub struct SingleName {
   spec : Specifier
   name : Name
@@ -427,7 +484,6 @@ pub enum Token {
   KwGeneric
   KwNoreturn
   KwStaticAssert
-  KwThreadLocal
   KwAsm
   KwPragma
   KwAttribute
@@ -503,7 +559,6 @@ pub enum Token {
   LBrace
   RBrace
   Eof
-  Newline
   Hash
   HashHash
 }
@@ -520,7 +575,6 @@ pub enum TypeSpecifier {
   Tfloat
   Tdouble
   Tsigned
-  Tsizet
   Tunsigned
   Tnamed(String)
   Tstruct(String, Array[FieldGroup]?, Array[CabsAttribute])
